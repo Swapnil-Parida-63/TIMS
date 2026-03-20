@@ -4,8 +4,7 @@ import dotenv from 'dotenv';
 
 // Load environment variables from .env file
 dotenv.config();
-// Log the loaded environment variables for debugging purposes
-// console.log(dotenv.config());
+
 const PORT = process.env.PORT || 3000;
 
 
