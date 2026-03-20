@@ -1,13 +1,19 @@
-import express from "express";
-import connectToDatabase from "./connection/user.js";
-
-
-const app = express();
+import connectToDatabase from './config/db.js';
+import app from './app.js';
 
 const PORT = process.env.PORT || 3000;
 
-connectToDatabase();
-
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+const  startServer = async () => {
+  try{
+    await connectToDatabase();
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  }
+  catch (error) {
+    console.error("Server failed to start:", error);
+    Process.exit(1);
+  }
+}
+  
+startServer(); 
