@@ -1,4 +1,4 @@
-import Candidate from "./candidate.model";
+import Candidate from "./candidate.model.js";
 
 export async function createCandidate(data) {
 

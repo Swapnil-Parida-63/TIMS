@@ -28,5 +28,5 @@ const candidateSchema = new mongoose.Schema({
 {timestamps: true} // This will automatically add createdAt and updatedAt fields)
 );
 
-export default Candidate = mongoose.model("Candidate", candidateSchema);
-
+const  Candidate = mongoose.model("Candidate", candidateSchema);
+export default Candidate;
