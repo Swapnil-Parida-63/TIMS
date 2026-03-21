@@ -1,10 +1,10 @@
 import express from 'express';
 import {createCandidate} from './candidate.controller.js';
 
-const router = express.Router();
+const candidateRouter = express.Router();
 
 
-router.post('/', createCandidate);
+candidateRouter.post('/', createCandidate);
 
 
-export default router;
+export default candidateRouter;
