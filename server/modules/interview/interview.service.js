@@ -1,10 +1,11 @@
 import Interview from "./interview.model.js";
 import Candidate from "../candidate/candidate.model.js";
 import { createZoomMeeting } from "../../services/zoom.service.js";
+import { generateToken } from "../../utils/token.js";
 
 export const createInterview = async (data) => {
   const  {scheduledAt, candidate, judges} = data;
-  
+
   // const ZoomDetails = await createZoomMeeting({scheduledAt}); // Create Zoom meeting and get details
 
 //   try {
@@ -37,7 +38,11 @@ export const createInterview = async (data) => {
         throw new Error("Internal judge must have a user ID"); // Ensuring internal judges have a user ID
       }
 
-      else if (judge.judgeType === "external" && !judge.email){
+       if (judge.judgeType === "external" && judge.email != null && !judge.token){ 
+        judge.token = generateToken();
+      }
+
+       if (judge.judgeType === "external" && !judge.email){
         throw new Error("External judge must have an email"); // Ensuring external judges have an email
       }
       else if (!["internal", "external"].includes(judge.judgeType)) {
