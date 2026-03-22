@@ -13,9 +13,12 @@ const interviewSchema = new mongoose.Schema(
       required: true,
     },
 
+          //Judges array only stores who is assigned
+          //Roles & permissions are handled separately
+
     judges: [
       {
-        type: {
+        judgeType: {
           type: String,
           enum: ["internal", "external"],
           required: true,
@@ -24,7 +27,8 @@ const interviewSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "User", // for internal
         },
-        email: String, // for external
+        email: String,
+        token: String // for external
       },
     ],
 
