@@ -19,3 +19,25 @@ export const interview = async (req, res) => {
   }
   
 }
+
+export const joinInterview = async (req, res) => {
+     try{
+      const { token } = req.query;
+            if (!token) {
+              return res.status(400).json({ 
+                success: false, 
+                message: "Token is required" });
+            }
+      const interview = await interviewService.getInterviewByToken(token);
+            res.status(200).json({
+              success: true,
+              data: interview
+            });
+     }
+     catch (error){
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+     }
+}

@@ -32,6 +32,8 @@ const interviewSchema = new mongoose.Schema(
       },
     ],
 
+    //
+
     zoomMeetingId: String,
     zoomJoinUrl: String,
 
@@ -43,10 +45,15 @@ const interviewSchema = new mongoose.Schema(
       default: "scheduled",
     },
 
-    feedback: {
-      type: String,
-      default: null,
-    },
+feedbacks: [
+  {
+    judgeType: String,
+    user: mongoose.Schema.Types.ObjectId,
+    email: String,
+    feedback: String,
+    submittedAt: Date
+  }
+]
   },
   { timestamps: true }
 );
