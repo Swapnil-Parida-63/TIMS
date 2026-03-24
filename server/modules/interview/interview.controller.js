@@ -41,3 +41,23 @@ export const joinInterview = async (req, res) => {
       });
      }
 }
+
+export const giveFeedback = async (req, res) => {
+    try {
+      let feedbackText;
+      const token = req.query.token || req.body.token; // Accept token from query parameters or request body
+      const { user, feedback } = req.body;
+      feedbackText = feedback;
+
+      const result = await interviewService.submitFeedback({ token, user, feedbackText });
+      res.status(200).json({
+        success: true,
+        message: result
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+}

@@ -2,6 +2,7 @@ import Interview from "./interview.model.js";
 import Candidate from "../candidate/candidate.model.js";
 import { createZoomMeeting } from "../../services/zoom.service.js";
 import { generateToken } from "../../utils/token.js";
+import { error } from "node:console";
 
 export const createInterview = async (data) => {          //create interview function which takes the interview details as input and creates an interview document in the database, it also creates a Zoom meeting and saves the meeting details in the interview document.
   const  {scheduledAt, candidate, judges} = data;
@@ -77,3 +78,51 @@ export const createInterview = async (data) => {          //create interview fun
         };
       // return interview;
   }
+
+ export const submitFeedback = async ({token, user, feedbackText}) => {
+         let interview;
+         let judge;
+         if (token){           //Case one: Judge is an external judge and will be identified by the token
+          interview = await Interview.findOne({
+            "judges.token": token
+          });
+          if(!interview){
+            throw new Error("Invalid token");
+          }
+             judge = interview.judges.find(j => j.token === token);  // Find the judge associated with the token
+         }
+         else if (user){   //Case two: Judge is an internal judge and will be identified by the user ID
+          interview = await Interview.findOne({
+            "judges.user": user
+          });
+          if(!interview){
+            throw new Error("User is not assigned as a judge for any interview");
+          }
+           judge = interview.judges.find(j => String(j.user) === String(user));  // Find the judge associated with the user ID
+         }
+         else {
+          throw new Error("Either token or user ID must be provided");
+         }
+
+         const alreadySubmitted = interview.feedbacks?.find(f =>        // Check if feedback has already been submitted by this judge
+            token ? f.token === token : String(f.user) === String(user)
+          );
+          if (alreadySubmitted){
+            throw new Error("Feedback already submitted");
+          }
+
+            interview.feedbacks.push({         // Push feedback into the interview document's feedbacks array
+            judgeType: judge.judgeType,
+            user: judge.user,
+            email: judge.email,
+            token: judge.token,
+            feedback: feedbackText,
+            submittedAt: new Date()
+            });
+
+            await interview.save();
+
+            return "Feedback submitted successfully";
+  }
+
+  
