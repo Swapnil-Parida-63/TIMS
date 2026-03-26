@@ -3,6 +3,7 @@ import Candidate from "../candidate/candidate.model.js";
 import { createZoomMeeting } from "../../services/zoom.service.js";
 import { generateToken } from "../../utils/token.js";
 import { error } from "node:console";
+import { calculateTotalScore } from "../../utils/score.js";
 
 export const createInterview = async (data) => {          //create interview function which takes the interview details as input and creates an interview document in the database, it also creates a Zoom meeting and saves the meeting details in the interview document.
   const  {scheduledAt, candidate, judges} = data;
@@ -79,7 +80,7 @@ export const createInterview = async (data) => {          //create interview fun
       // return interview;
   }
 
- export const submitFeedback = async ({token, user, feedbackText}) => {
+ export const submitFeedback = async ({token, userId, feedbackText, ratings}) => {
          let interview;
          let judge;
          if (token){           //Case one: Judge is an external judge and will be identified by the token
@@ -93,7 +94,7 @@ export const createInterview = async (data) => {          //create interview fun
          }
          else if (user){   //Case two: Judge is an internal judge and will be identified by the user ID
           interview = await Interview.findOne({
-            "judges.user": user
+            "judges.user": userId
           });
           if(!interview){
             throw new Error("User is not assigned as a judge for any interview");
@@ -110,13 +111,16 @@ export const createInterview = async (data) => {          //create interview fun
           if (alreadySubmitted){
             throw new Error("Feedback already submitted");
           }
-
+     const totalScore = calculateTotalScore(ratings);
+     
             interview.feedbacks.push({         // Push feedback into the interview document's feedbacks array
             judgeType: judge.judgeType,
             user: judge.user,
             email: judge.email,
             token: judge.token,
             feedback: feedbackText,
+            ratings,
+            totalScore,
             submittedAt: new Date()
             });
 
@@ -124,5 +128,33 @@ export const createInterview = async (data) => {          //create interview fun
 
             return "Feedback submitted successfully";
   }
+ 
+        export const getFeedbackForInterview = async (interviewId) => {
 
-  
+          const interview = await Interview.findById(interviewId);
+
+          console.log("Incoming interviewId:", interviewId);
+
+          if (!interview){
+            throw new Error("Interview not found");
+          }
+            return interview.feedbacks;   // Return all feedbacks for the specified interview...
+          } 
+    
+export const addHRRemark = async (interviewId, user, remark) => {
+
+          // 🔒 Only admin
+          if (user.role !== "admin") {
+            throw new Error("Only admin can add HR remark");
+          }
+
+          const interview = await Interview.findById(interviewId);
+          if (!interview) throw new Error("Interview not found");
+
+          interview.hrRemark = remark;
+
+          await interview.save();
+
+          return "HR remark added";
+};
+

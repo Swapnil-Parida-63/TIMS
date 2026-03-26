@@ -1,9 +1,9 @@
+import "./config/env.js";
+// console.log(process.env.JWT_SECRET)
 import connectToDatabase from './config/db.js';
 import app from './app.js';
-import dotenv from 'dotenv';
 
-// Load environment variables from .env file
-dotenv.config();
+
 
 const PORT = process.env.PORT || 3000;
 
