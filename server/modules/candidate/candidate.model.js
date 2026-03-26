@@ -24,6 +24,16 @@ const candidateSchema = new mongoose.Schema({
     enum: ["applied", "interview scheduled", "Standby", "Selected", "rejected"],
     default: "applied"
   },
+    pricing: {
+    cpc: String,          // AP-1, BP-3 etc (set by super admin)
+    classCode: String,    // A-4, B-2 etc (set by admin)
+
+    derived: {
+      hourlyRate: Number,
+      monthlyFee: Number,
+      extraHalfHourPay: Number
+  }
+},
 },
 {timestamps: true} // This will automatically add createdAt and updatedAt fields)
 );
