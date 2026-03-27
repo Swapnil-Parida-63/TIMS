@@ -45,15 +45,6 @@ const interviewSchema = new mongoose.Schema(
       default: "scheduled",
     },
 
-// feedbacks: [
-//   {
-//     judgeType: String,
-//     user: mongoose.Schema.Types.ObjectId,
-//     email: String,
-//     feedback: String,
-//     submittedAt: Date
-//   }
-// ]
 feedbacks: [
   {
     judgeType: String,
@@ -93,12 +84,34 @@ feedbacks: [
 
     hrRemark: {
       type: String,
-      default: null
+      default: null 
     },
 
     submittedAt: Date
   }
-]
+],
+
+pricing: {
+  cpc: String,           // AP-1 (super admin)
+  category: String,      // A/B/D/E (super admin)
+
+  classCode: String,     // A-4 (admin)
+
+  details: {
+    subjects: String,
+    minClasses: Number,
+    hourlyRate: Number,
+    parentMonthly: Number,
+    parentExtra30: Number,
+    teacherExtra30: Number
+  }
+},
+
+students: [
+  {
+    board: String   // CBSE / ICSE etc (future-ready)
+  }
+],
   },
   { timestamps: true }
 );

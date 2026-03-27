@@ -1,3 +1,4 @@
+import Interview from './interview.model.js';
 import * as interviewService from './interview.service.js';
 
 export const interview = async (req, res) => {
@@ -101,6 +102,74 @@ export const addHRRemark = async (req, res) => {
       req.user,
       remark
     );
+
+    res.json({
+      success: true,
+      message: result
+    });
+
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+export const assignCPC = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cpc } = req.body;
+    const user = req.user;
+
+    const result = await interviewService.assignCPC(id, cpc, user);
+
+    res.json({ success: true, message: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+export const getClassOptions = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const options = await interviewService.getClassOptions(id); // this will go and get the class options for the id we provide here from req.params
+
+    res.status(200).json({
+      success: true,
+      data: options
+    });
+
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+export const selectClassCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { classCode } = req.body;
+    const user = req.user;
+
+    const result = await interviewService.selectClassCode(id, classCode, user);
+
+    res.json({ success: true, message: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+
+export const addStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { board } = req.body;
+
+    const result = await interviewService.addStudent(id, board, req.user);
 
     res.json({
       success: true,

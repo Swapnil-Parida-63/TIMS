@@ -2,8 +2,9 @@ import Interview from "./interview.model.js";
 import Candidate from "../candidate/candidate.model.js";
 import { createZoomMeeting } from "../../services/zoom.service.js";
 import { generateToken } from "../../utils/token.js";
-import { error } from "node:console";
 import { calculateTotalScore } from "../../utils/score.js";
+import { CLASS_CODES } from "../../config/classCodes.js";
+import { CPC_MAP } from "../../config/cpcMap.js";
 
 export const createInterview = async (data) => {          //create interview function which takes the interview details as input and creates an interview document in the database, it also creates a Zoom meeting and saves the meeting details in the interview document.
   const  {scheduledAt, candidate, judges} = data;
@@ -158,3 +159,105 @@ export const addHRRemark = async (interviewId, user, remark) => {
           return "HR remark added";
 };
 
+export const assignCPC = async (id, cpc, user) => {     // super admin selecting cpc
+  if (user.role !== "super_admin") {
+    throw new Error("Only super admin allowed");
+  }
+
+  const interview = await Interview.findById(id);
+
+  if (!interview) throw new Error("Interview not found");
+
+  if (!cpc) throw new Error("CPC is required");
+
+interview.pricing = {
+  cpc,
+  category: cpc[0],
+  classCode: null,
+  details: null
+};
+
+  await interview.save();
+
+  return "CPC assigned";
+};
+
+export const getClassOptions = async (id) => {
+  const interview = await Interview.findById(id);
+
+  if (!interview) {
+    throw new Error("Interview not found");
+  }
+
+  if (!interview?.pricing?.cpc) {
+    throw new Error("Not reviewed yet");
+  }
+    // console.log("CPC:", interview.pricing.cpc);
+    // console.log("MAP VALUE:", CPC_MAP[interview.pricing.cpc]);
+
+    const prefix = interview.pricing.cpc.slice(0, 2);
+
+    return CPC_MAP[prefix]?.[interview.pricing.cpc];
+
+
+};
+
+export const selectClassCode = async (id, classCode, user) => {
+
+  if (!["admin", "super_admin"].includes(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  const interview = await Interview.findById(id);
+  if (!interview) {
+    throw new Error("Interview not found");
+  }
+
+  if (!interview?.pricing?.cpc) {
+    throw new Error("Not reviewed yet");
+  }
+
+  const prefix = interview.pricing.cpc.slice(0, 2);
+
+    const allowed = CPC_MAP[prefix]?.[interview.pricing.cpc];
+
+    if (!allowed) {
+      throw new Error("Invalid CPC mapping");
+    }
+
+  if (!allowed.includes(classCode)) {
+    throw new Error("Invalid class code");
+  }
+
+  const details = CLASS_CODES[classCode];
+
+  interview.pricing = {
+    ...interview.pricing,
+    classCode,
+    details
+  };
+
+  await interview.save();
+
+  return "Class code assigned";
+};
+
+
+export const addStudent = async (id, board, user) => {
+  if (!["admin", "super_admin"].includes(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  const interview = await Interview.findById(id);
+  if (!interview) throw new Error("Interview not found");
+
+  if (!interview.students) {
+    interview.students = [];
+  }
+
+  interview.students.push({ board });
+
+  await interview.save();
+
+  return "Student added";
+};

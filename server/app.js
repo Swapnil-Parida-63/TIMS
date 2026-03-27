@@ -3,6 +3,7 @@ import cors from "cors";
 import interviewRouter from "./modules/interview/interview.route.js";
 import candidateRouter from "./modules/candidate/candidate.route.js";
 import authRouter from "./modules/auth/auth.route.js";
+import teacherRouter from "./modules/teacher/teacher.route.js"
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(express.json());
 app.use('/api/candidate', candidateRouter);
 app.use("/api/interview", interviewRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/teacher", teacherRouter);
 
 // Routes
 // router.get("/", (req, res) => {
