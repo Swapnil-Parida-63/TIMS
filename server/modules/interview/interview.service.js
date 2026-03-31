@@ -5,158 +5,191 @@ import { generateToken } from "../../utils/token.js";
 import { calculateTotalScore } from "../../utils/score.js";
 import { CLASS_CODES } from "../../config/classCodes.js";
 import { CPC_MAP } from "../../config/cpcMap.js";
+import mongoose from "mongoose";
+import { sendInterviewEmail } from "../../services/email.service.js";
 
-export const createInterview = async (data) => {          //create interview function which takes the interview details as input and creates an interview document in the database, it also creates a Zoom meeting and saves the meeting details in the interview document.
-  const  {scheduledAt, candidate, judges} = data;
-
-  // const ZoomDetails = await createZoomMeeting({scheduledAt}); // Create Zoom meeting and get details
-
-//   try {
-//   const zoomDetails = await createZoomMeeting({scheduledAt}); // Create Zoom meeting and get details
-// } catch (err) {
-//   console.log(err.response?.data || err.message);
-// }
-
-  const zoomDetails = {
-  meetingId: "dummy123",
-  joinUrl: "https://zoom.us/dummy"  // Dummy data for testing without actual Zoom integration
+export const getInterviews = async () => {
+  return await Interview.find({}).populate('candidate').sort({ createdAt: -1 });
 };
 
- //Get required details
-   if (!scheduledAt || !candidate ){
-    throw new Error("Missing required fields: scheduledAt, candidate");
-   } 
+export const createInterview = async (data) => {
+  const { scheduledAt, candidate, judges } = data;
 
-  //Candidate existence check
+  if (!scheduledAt || !candidate) {
+    throw new Error("Missing required fields: scheduledAt, candidate");
+  }
+
+  // Candidate existence check
   const candidateExists = await Candidate.findById(candidate);
   if (!candidateExists) {
     throw new Error("Candidate not found");
   }
 
-  //Validate judges
-  // for clarity the internal judges are "Externals who are also employees or not temporary and have their account created and info saved in the db, the external judges are "Externals" whoa are guests and, not a permanent member and don't have an account hence no info saved int to the db.
-  if(judges && judges.length > 0){
-    for (const judge of judges){
-      if (judge.judgeType === "internal" && !judge.user){
-        throw new Error("Internal judge must have a user ID"); // Ensuring internal judges have a user ID
+  // Generate Zoom Meeting
+  let zoomDetails;
+  try {
+    zoomDetails = await createZoomMeeting({ scheduledAt });
+  } catch (err) {
+    console.error("Zoom Creation Failed:", err.response?.data || err.message);
+    throw new Error("Failed to create Zoom Meeting. Please check Zoom credentials.");
+  }
+
+  // Validate judges
+  // Ensure we can fetch internal judge emails if applicable
+  const UserModel = mongoose.model("User");
+  
+  if (judges && judges.length > 0) {
+    for (const judge of judges) {
+      if (judge.judgeType === "internal" && !judge.user) {
+        throw new Error("Internal judge must have a user ID");
       }
 
-       if (judge.judgeType === "external" && judge.email != null && !judge.token){ 
-        judge.token = generateToken(); // Generating token for external judges if email is provided but token is missing
+      // Fetch internal judge email if not provided
+      if (judge.judgeType === "internal" && judge.user && !judge.email) {
+        try {
+          const intUser = await UserModel.findById(judge.user);
+          if (intUser && intUser.email) {
+            judge.email = intUser.email;
+          }
+        } catch (e) {
+          console.error("Failed to populate internal judge email:", e.message);
+        }
       }
 
-       if (judge.judgeType === "external" && !judge.email){
-        throw new Error("External judge must have an email"); // Ensuring external judges have an email
+      if (judge.judgeType === "external" && judge.email != null && !judge.token) {
+        judge.token = generateToken();
+      }
+
+      if (judge.judgeType === "external" && !judge.email) {
+        throw new Error("External judge must have an email");
       }
       else if (!["internal", "external"].includes(judge.judgeType)) {
-        throw new Error("Invalid judge type");         // Ensuring judge type is either internal or external
-}
+        throw new Error("Invalid judge type");
+      }
     }
+  }
 
-  };
- 
-
+  // Create Interview
   const interview = await Interview.create({
-            ...data,
-        zoomMeetingId: zoomDetails.meetingId,    // Saving Zoom meeting details in the interview document
-        zoomJoinUrl: zoomDetails.joinUrl,
+    ...data,
+    zoomMeetingId: zoomDetails.meetingId,
+    zoomJoinUrl: zoomDetails.joinUrl,
+    zoomStartUrl: zoomDetails.startUrl,
+    zoomRecordingStatus: "pending"
   });
+
+  // Intercept and send Email to Candidate and Judges
+  // This executes independently so creating the interview doesn't fail if SMTP breaks
+  sendInterviewEmail(candidateExists, judges, zoomDetails)
+    .catch(err => console.error("Email dispatcher error:", err.message));
+
   return interview;
 }
 
-  export const getInterviewByToken = async (token) => {
-      const interview = await Interview. findOne({
-        "judges.token": token
-      })
-      if (!interview){
-        throw new Error("Invalid token or expired token");
-      }
-        const judge = interview.judges.find(j => j.token === token);  // Find the judge associated with the token
+export const getInterviewByToken = async (token) => {
+  const interview = await Interview.findOne({
+    "judges.token": token
+  })
+  if (!interview) {
+    throw new Error("Invalid token or expired token");
+  }
+  const judge = interview.judges.find(j => j.token === token);  // Find the judge associated with the token
 
-        return {
-          interviewId: interview._id,
-          zoomJoinUrl: interview.zoomJoinUrl,    // Return the Zoom join URL for the interview
-          judge,
-        };
-      // return interview;
+  return {
+    interviewId: interview._id,
+    zoomJoinUrl: interview.zoomJoinUrl,    // Return the Zoom join URL for the interview
+    judge,
+  };
+  // return interview;
+}
+
+export const submitFeedback = async ({ interviewId, token, userId, feedbackText, ratings }) => {
+  let interview;
+  let judge;
+
+  if (interviewId && userId) {
+    // Internal judge submitting from the interview detail page
+    interview = await Interview.findById(interviewId);
+    if (!interview) throw new Error('Interview not found');
+    judge = interview.judges.find(j => String(j.user) === String(userId));
+    if (!judge) {
+      // Admin/super_admin submitting feedback even if not listed as judge — allow it
+      judge = { judgeType: 'internal', user: userId };
+    }
+  } else if (token) {
+    // External judge identified by their unique token
+    interview = await Interview.findOne({ 'judges.token': token });
+    if (!interview) throw new Error('Invalid or expired token');
+    judge = interview.judges.find(j => j.token === token);
+  } else if (interviewId && !userId) {
+    throw new Error('User ID required for internal feedback submission');
+  } else if (userId) {
+    // Fallback: find interview by judge userId (legacy path)
+    interview = await Interview.findOne({ 'judges.user': userId });
+    if (!interview) throw new Error('User is not assigned as a judge for any interview');
+    judge = interview.judges.find(j => String(j.user) === String(userId));
+  } else {
+    throw new Error('Either token or user ID must be provided');
   }
 
- export const submitFeedback = async ({token, userId, feedbackText, ratings}) => {
-         let interview;
-         let judge;
-         if (token){           //Case one: Judge is an external judge and will be identified by the token
-          interview = await Interview.findOne({
-            "judges.token": token
-          });
-          if(!interview){
-            throw new Error("Invalid token");
-          }
-             judge = interview.judges.find(j => j.token === token);  // Find the judge associated with the token
-         }
-         else if (user){   //Case two: Judge is an internal judge and will be identified by the user ID
-          interview = await Interview.findOne({
-            "judges.user": userId
-          });
-          if(!interview){
-            throw new Error("User is not assigned as a judge for any interview");
-          }
-           judge = interview.judges.find(j => String(j.user) === String(user));  // Find the judge associated with the user ID
-         }
-         else {
-          throw new Error("Either token or user ID must be provided");
-         }
+  const alreadySubmitted = interview.feedbacks?.find(f =>
+    token ? f.token === token : String(f.user) === String(userId)
+  );
+  if (alreadySubmitted) throw new Error('Feedback already submitted');
 
-         const alreadySubmitted = interview.feedbacks?.find(f =>        // Check if feedback has already been submitted by this judge
-            token ? f.token === token : String(f.user) === String(user)
-          );
-          if (alreadySubmitted){
-            throw new Error("Feedback already submitted");
-          }
-     const totalScore = calculateTotalScore(ratings);
-     
-            interview.feedbacks.push({         // Push feedback into the interview document's feedbacks array
-            judgeType: judge.judgeType,
-            user: judge.user,
-            email: judge.email,
-            token: judge.token,
-            feedback: feedbackText,
-            ratings,
-            totalScore,
-            submittedAt: new Date()
-            });
+  const totalScore = calculateTotalScore(ratings);
 
-            await interview.save();
+  interview.feedbacks.push({
+    judgeType: judge.judgeType || 'internal',
+    user: judge.user,
+    email: judge.email,
+    token: judge.token,
+    feedback: feedbackText,
+    ratings,
+    totalScore,
+    submittedAt: new Date()
+  });
 
-            return "Feedback submitted successfully";
+  await interview.save();
+  return 'Feedback submitted successfully';
+}
+
+export const getFeedbackForInterview = async (interviewId) => {
+
+  const interview = await Interview.findById(interviewId);
+
+  console.log("Incoming interviewId:", interviewId);
+
+  if (!interview) {
+    throw new Error("Interview not found");
   }
- 
-        export const getFeedbackForInterview = async (interviewId) => {
+  return interview.feedbacks;   // Return all feedbacks for the specified interview...
+}
 
-          const interview = await Interview.findById(interviewId);
+export const addHRRemark = async (interviewId, user, remark, feedbackIndex = 0) => {
 
-          console.log("Incoming interviewId:", interviewId);
+  // 🔒 Only admin or super_admin
+  if (!["admin", "super_admin"].includes(user.role)) {
+    throw new Error("Only admin can add HR remark");
+  }
 
-          if (!interview){
-            throw new Error("Interview not found");
-          }
-            return interview.feedbacks;   // Return all feedbacks for the specified interview...
-          } 
-    
-export const addHRRemark = async (interviewId, user, remark) => {
+  const interview = await Interview.findById(interviewId);
+  if (!interview) throw new Error("Interview not found");
 
-          // 🔒 Only admin
-          if (user.role !== "admin") {
-            throw new Error("Only admin can add HR remark");
-          }
+  // hrRemark belongs inside the feedbacks subdocument, not at interview root
+  if (!interview.feedbacks || interview.feedbacks.length === 0) {
+    throw new Error("No feedback found to add HR remark to");
+  }
 
-          const interview = await Interview.findById(interviewId);
-          if (!interview) throw new Error("Interview not found");
+  // Default to the first feedback; caller can pass feedbackIndex for a specific one
+  const feedback = interview.feedbacks[feedbackIndex];
+  if (!feedback) throw new Error(`No feedback at index ${feedbackIndex}`);
 
-          interview.hrRemark = remark;
+  feedback.hrRemark = remark;
 
-          await interview.save();
+  await interview.save();
 
-          return "HR remark added";
+  return "HR remark added";
 };
 
 export const assignCPC = async (id, cpc, user) => {     // super admin selecting cpc
@@ -170,12 +203,12 @@ export const assignCPC = async (id, cpc, user) => {     // super admin selecting
 
   if (!cpc) throw new Error("CPC is required");
 
-interview.pricing = {
-  cpc,
-  category: cpc[0],
-  classCode: null,
-  details: null
-};
+  interview.pricing = {
+    cpc,
+    category: cpc[0],
+    classCode: null,
+    details: null
+  };
 
   await interview.save();
 
@@ -192,12 +225,12 @@ export const getClassOptions = async (id) => {
   if (!interview?.pricing?.cpc) {
     throw new Error("Not reviewed yet");
   }
-    // console.log("CPC:", interview.pricing.cpc);
-    // console.log("MAP VALUE:", CPC_MAP[interview.pricing.cpc]);
+  // console.log("CPC:", interview.pricing.cpc);
+  // console.log("MAP VALUE:", CPC_MAP[interview.pricing.cpc]);
 
-    const prefix = interview.pricing.cpc.slice(0, 2);
+  const prefix = interview.pricing.cpc.split("-")[0];
 
-    return CPC_MAP[prefix]?.[interview.pricing.cpc];
+  return CPC_MAP[prefix]?.[interview.pricing.cpc];
 
 
 };
@@ -217,13 +250,13 @@ export const selectClassCode = async (id, classCode, user) => {
     throw new Error("Not reviewed yet");
   }
 
-  const prefix = interview.pricing.cpc.slice(0, 2);
+  const prefix = interview.pricing.cpc.split("-")[0];
 
-    const allowed = CPC_MAP[prefix]?.[interview.pricing.cpc];
+  const allowed = CPC_MAP[prefix]?.[interview.pricing.cpc];
 
-    if (!allowed) {
-      throw new Error("Invalid CPC mapping");
-    }
+  if (!allowed) {
+    throw new Error("Invalid CPC mapping");
+  }
 
   if (!allowed.includes(classCode)) {
     throw new Error("Invalid class code");
@@ -249,7 +282,7 @@ export const addStudent = async (id, board, user) => {
   }
 
   const interview = await Interview.findById(id);
-  if (!interview) throw new Error("Interview not found");
+  if (!interview) throw new Error("Interview not found"); 
 
   if (!interview.students) {
     interview.students = [];
@@ -260,4 +293,72 @@ export const addStudent = async (id, board, user) => {
   await interview.save();
 
   return "Student added";
+};
+
+import { deleteRecording } from "../../services/zoom.service.js";
+
+export const getRecordingUrl = async (id, user) => {
+  if (!["admin", "super_admin"].includes(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  const interview = await Interview.findById(id);
+  if (!interview) throw new Error("Interview not found");
+  
+  if (interview.zoomRecordingStatus !== "available" || !interview.zoomRecordingUrl) {
+    throw new Error("Recording is not available yet");
+  }
+
+  return { downloadUrl: interview.zoomRecordingUrl };
+};
+
+export const rejectCandidate = async (id, user) => {
+  if (!["admin", "super_admin"].includes(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  const interview = await Interview.findById(id);
+  if (!interview) throw new Error("Interview not found");
+
+  // 1. Mark candidate as rejected (lowercase to match enum + frontend Badge checks)
+  await Candidate.findByIdAndUpdate(interview.candidate, { status: 'rejected' });
+
+  // 2. Mark interview as cancelled
+  interview.status = 'cancelled';
+  await interview.save();
+
+  // 3. Delete Zoom Recording if it exists
+  if (interview.zoomMeetingId && interview.zoomRecordingStatus !== 'deleted') {
+    try {
+      await deleteRecording(interview.zoomMeetingId);
+    } catch (err) {
+      console.error('Failed to delete recording on reject:', err.message);
+    }
+    interview.zoomRecordingStatus = 'deleted';
+    interview.zoomRecordingUrl = null;
+    await interview.save();
+  }
+
+  return 'Candidate rejected';
+};
+
+export const updateInterviewStatus = async (id, status, user) => {
+  if (!["admin", "super_admin"].includes(user?.role)) {
+    throw new Error("Unauthorized");
+  }
+  
+  const allowedStatuses = ["scheduled", "completed", "cancelled"];
+  if (!allowedStatuses.includes(status)) {
+    throw new Error("Invalid status type");
+  }
+
+  const interview = await Interview.findByIdAndUpdate(
+    id, 
+    { status }, 
+    { new: true }
+  );
+
+  if (!interview) throw new Error("Interview not found");
+  
+  return interview;
 };

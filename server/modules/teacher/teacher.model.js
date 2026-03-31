@@ -10,6 +10,10 @@ const teacherSchema = new mongoose.Schema({
   cpc: String,
   category: String,
   classCode: String,
+  classes: [String],
+  slots: Number,
+  serialNumber: String,
+  loaPath: String,   // absolute path to the generated LoA PDF on disk
 
   pricing: {
     subjects: String,

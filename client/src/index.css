@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* ── Tell Tailwind v4 to use .dark class (not OS media query) ── */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary-50: #f5f3ff;
+  --color-primary-100: #ede9fe;
+  --color-primary-200: #ddd6fe;
+  --color-primary-300: #c4b5fd;
+  --color-primary-400: #a78bfa;
+  --color-primary-500: #8b5cf6;
+  --color-primary-600: #7c3aed;
+  --color-primary-700: #6d28d9;
+  --color-primary-800: #5b21b6;
+  --color-primary-900: #4c1d95;
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+}
+
+/* ── Base ───────────────────────────────────────────── */
+body {
+  background-color: #f8fafc;
+  color: #1e293b;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* Dark body — only when html has .dark class */
+html.dark body {
+  background-color: #020617;
+  color: #e2e8f0;
+}
+
+/* ── Admin card ─────────────────────────────────────── */
+.admin-card {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.07);
+  border: 1px solid #f1f5f9;
+}
+
+html.dark .admin-card {
+  background: #0f172a;
+  border-color: #1e293b;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3);
+}
+
+/* ── Inputs & selects in dark mode ──────────────────── */
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html.dark select,
+html.dark textarea {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: #7c3aed;
+  outline: none;
+}

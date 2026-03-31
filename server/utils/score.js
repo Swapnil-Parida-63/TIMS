@@ -30,7 +30,8 @@ export const calculateTotalScore = async (ratings) => {
                     );
  }
  catch (error) {
-     res.status(401).json({message:"Could not get score..."})
+     console.error("calculateTotalScore error:", error);
+     return 0;
  }
 
 }

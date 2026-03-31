@@ -36,12 +36,18 @@ const interviewSchema = new mongoose.Schema(
 
     zoomMeetingId: String,
     zoomJoinUrl: String,
+    zoomStartUrl: String,
 
-    recordingUrl: String,
+    zoomRecordingUrl: String,
+    zoomRecordingStatus: {
+      type: String,
+      enum: ["pending", "available", "deleted"],
+      default: "pending"
+    },
 
     status: {
       type: String,
-      enum: ["scheduled", "completed", "cancelled"],
+      enum: ["scheduled", "completed", "cancelled", "selected", "rejected"],
       default: "scheduled",
     },
 
@@ -84,7 +90,12 @@ feedbacks: [
 
     hrRemark: {
       type: String,
-      default: null 
+      default: null
+    },
+
+    totalScore: {
+      type: Number,
+      default: null
     },
 
     submittedAt: Date

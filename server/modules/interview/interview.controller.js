@@ -1,6 +1,26 @@
 import Interview from './interview.model.js';
 import * as interviewService from './interview.service.js';
 
+export const getInterviews = async (req, res) => {
+  try {
+    const interviews = await interviewService.getInterviews();
+    res.json({ success: true, data: interviews });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+export const testZoom = async (req, res) => {
+  try {
+    const { getZoomAccessToken } = await import('../../services/zoom.service.js');
+    const token = await getZoomAccessToken();
+    res.json({ success: true, message: 'Zoom credentials are valid ✓', tokenPreview: token.slice(0, 20) + '...' });
+  } catch (err) {
+    const detail = err.response?.data || err.message;
+    res.status(400).json({ success: false, message: 'Zoom credential check failed', detail });
+  }
+};
+
 export const interview = async (req, res) => {
   
   try{
@@ -45,15 +65,17 @@ export const joinInterview = async (req, res) => {
 
 export const giveFeedback = async (req, res) => {
     try {
-      let feedbackText;
-      const token = req.query.token || req.body.token; // Accept token from query parameters or request body
-      const {feedback } = req.body;
-      feedbackText = feedback;
-      const userId = req.user?._id;  // 🔥 internal (from JWT)
+      const token = req.query.token || req.body.token;
+      const { feedback, ratings, interviewId } = req.body;
+      const userId = req.user?._id;  // internal users — set by protect middleware
 
-      const { ratings } = req.body;
-
-      const result = await interviewService.submitFeedback({ token, userId, feedbackText, ratings });
+      const result = await interviewService.submitFeedback({
+        interviewId,
+        token,
+        userId,
+        feedbackText: feedback,
+        ratings
+      });
       res.status(200).json({
         success: true,
         message: result
@@ -181,5 +203,36 @@ export const addStudent = async (req, res) => {
       success: false,
       message: err.message
     });
+  }
+};
+
+export const getRecording = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await interviewService.getRecordingUrl(id, req.user);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+export const rejectCandidate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await interviewService.rejectCandidate(id, req.user);
+    res.json({ success: true, message: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+export const updateInterviewStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const interview = await interviewService.updateInterviewStatus(id, status, req.user);
+    res.json({ success: true, data: interview });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
   }
 };

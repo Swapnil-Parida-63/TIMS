@@ -8,7 +8,8 @@ const candidateSchema = new mongoose.Schema({
   },
   lastName: {
     type: String,
-    required: true
+    required: false,   // some names from sheet may be single-word
+    default: ''
   },
   email: {
     type: String,
@@ -21,22 +22,36 @@ const candidateSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["applied", "interview scheduled", "Standby", "Selected", "rejected"],
+    enum: ["applied", "interview scheduled", "standby", "selected", "rejected", "cancelled"],
     default: "applied"
   },
-    pricing: {
-    cpc: String,          // AP-1, BP-3 etc (set by super admin)
-    classCode: String,    // A-4, B-2 etc (set by admin)
+  fatherName: String,
+  motherName: String,
+  dob: String,
+  highestQualification: String,
+  technicalQualification: String,
+  specialisation: String,
+  experience: String,
+  currentAddress: String,
+  declaration: String,
 
-    derived: {
-      hourlyRate: Number,
-      monthlyFee: Number,
-      extraHalfHourPay: Number
-  }
-},
-},
-{timestamps: true} // This will automatically add createdAt and updatedAt fields)
-);
+  // ─── Teaching Profile (new fields) ───────────────────────────────────────
+  boardsToTeach:     { type: [String], default: [] },  // boards willing to teach
+  boardsTaught:      { type: [String], default: [] },  // boards already taught
+  classesToTeach:    { type: [String], default: [] },  // grades willing to teach
+  classesTaught:     { type: [String], default: [] },  // grades already taught
+  subjectToTeach:    { type: String, default: '' },    // subject applying for
+  subjectTaught:     { type: String, default: '' },    // subject previously taught
 
-const  Candidate = mongoose.model("Candidate", candidateSchema);
+  mediumOfInstruction: { type: [String], default: [] }, // Hindi, English, Odia (multi)
+  mediumComfortable:   { type: String, default: '' },   // most comfortable medium
+
+  institutionalExperience: { type: String, default: '' }, // school/institution exp
+  tuitionExperience:       { type: String, default: '' }, // private tuition exp
+
+  serviceLocation: { type: [String], default: [] }, // BBSR, Cuttack, Khorda
+
+}, { timestamps: true });
+
+const Candidate = mongoose.model("Candidate", candidateSchema);
 export default Candidate;

@@ -26,3 +26,23 @@ export const protect = async (req, res, next) => {
         }
   }
 
+/**
+ * softProtect — sets req.user if a valid JWT Bearer token is present,
+ * but does NOT block the request if there is no token.
+ * Used for routes shared by both logged-in internal users AND external judges
+ * who authenticate via a per-judge token in the request body instead.
+ */
+export const softProtect = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const user = await User.findById(decoded.id);
+      if (user) req.user = user;
+    }
+  } catch {
+    // Invalid token — treat as unauthenticated, still allow through
+  }
+  next();
+};

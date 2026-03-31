@@ -5,18 +5,26 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    lowercase: true,
+    trim: true
   },
+  // Password is optional — Google OAuth users don't have one
   password: {
     type: String,
-    required: true
+    required: false,
+    default: null
+  },
+  picture: {
+    type: String,
+    default: null
   },
   role: {
     type: String,
     enum: ["super_admin", "admin", "micro_observer", "expert"],
     required: true
   },
- }, {timestamps: true});
+}, { timestamps: true });
 
- const User = mongoose.model("User", userSchema);
- export default User;
+const User = mongoose.model("User", userSchema);
+export default User;
