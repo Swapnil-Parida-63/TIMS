@@ -11,6 +11,7 @@ import { InterviewsList } from './pages/InterviewsList';
 import { InterviewDetail } from './pages/InterviewDetail';
 import { JudgesPage } from './pages/JudgesPage';
 import { TeachersList } from './pages/TeachersList';
+import { MeetingsPage } from './pages/MeetingsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import './index.css';
 
@@ -32,6 +33,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/interviews/:id" element={<InterviewDetail />} />
         <Route path="/judges" element={<JudgesPage />} />
         <Route path="/teachers" element={<TeachersList />} />
+        <Route path="/meetings" element={<MeetingsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

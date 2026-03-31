@@ -17,17 +17,20 @@ export const googleLogin = (credential) => api.post('/auth/google', { credential
 export const getCandidates = () => api.get('/candidate');
 export const getCandidateById = (id) => api.get(`/candidate/${id}`);
 export const updateCandidate = (id, data) => api.patch(`/candidate/${id}`, data);
-export const deleteCandidate = (id) => api.delete(`/candidate/${id}`);
-
+export const deleteCandidate = (id, reason, notes = '') => api.delete(`/candidate/${id}`, { data: { reason, notes } });
+export const getDeletedLog = () => api.get('/candidate/deleted-log');
 
 
 // ─── Interviews ────────────────────────────────────────────────────────────
 export const getInterviews = () => api.get('/interview');
 export const createInterview = (data) => api.post('/interview', data);
 export const updateInterviewStatus = (id, status) => api.patch(`/interview/${id}/status`, { status });
-export const rejectInterview = (id) => api.post(`/interview/${id}/reject`);
+export const rescheduleInterview = (id, scheduledAt) => api.patch(`/interview/${id}/reschedule`, { scheduledAt });
+
+export const rejectInterview = (id, reason, notes = '') => api.post(`/interview/${id}/reject`, { reason, notes });
 export const getInterviewFeedbacks = (id) => api.get(`/interview/${id}/feedback`);
-export const assignCPC = (id, cpc) => api.patch(`/interview/${id}/cpc`, { cpc });
+export const assignCPC = (id, cpcFrom, cpcTo) => api.patch(`/interview/${id}/cpc`, { cpcFrom, cpcTo });
+
 export const getClassOptions = (id) => api.get(`/interview/${id}/class-options`);
 
 // ─── Teachers ──────────────────────────────────────────────────────────────
@@ -52,3 +55,10 @@ export const getFeedbacks = (interviewId) => api.get(`/interview/${interviewId}/
 
 // ─── Zoom ───────────────────────────────────────────────────────────────────
 export const testZoomConnection = () => api.get('/interview/test-zoom');
+
+// ─── Meetings (panelist / teacher standalone meetings) ───────────────────────
+export const getMeetings        = (type) => api.get('/meeting', { params: type ? { type } : {} });
+export const createMeeting      = (data) => api.post('/meeting', data);
+export const rescheduleMeeting  = (id, scheduledAt) => api.patch(`/meeting/${id}/reschedule`, { scheduledAt });
+export const updateMeetingStatus = (id, status) => api.patch(`/meeting/${id}/status`, { status });
+export const deleteMeeting      = (id) => api.delete(`/meeting/${id}`);

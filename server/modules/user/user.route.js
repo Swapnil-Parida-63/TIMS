@@ -25,9 +25,9 @@ userRouter.post('/', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only super_admin can create users' });
     }
     const bcrypt = await import('bcrypt');
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone } = req.body;
     const hashed = await bcrypt.default.hash(password || 'TheMentR@2024', 10);
-    const user = await User.create({ name, email, password: hashed, role });
+    const user = await User.create({ name, email, password: hashed, role, phone: phone || null });
     const { password: _, ...safe } = user.toObject();
     res.status(201).json({ success: true, data: safe });
   } catch (err) {
@@ -42,7 +42,7 @@ userRouter.patch('/:id/role', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only super_admin can change roles' });
     }
     const { role } = req.body;
-    const allowed = ['expert', 'micro_observer', 'admin'];
+    const allowed = ['admin', 'panelist'];
     if (!allowed.includes(role)) {
       return res.status(400).json({ success: false, message: `Role must be one of: ${allowed.join(', ')}` });
     }

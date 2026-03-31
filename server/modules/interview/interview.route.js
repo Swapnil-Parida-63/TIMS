@@ -1,5 +1,9 @@
 import express from 'express';
-import {interview, getInterviews, joinInterview,giveFeedback, getFeedbacks, addHRRemark, assignCPC, getClassOptions, selectClassCode, addStudent, getRecording, rejectCandidate, updateInterviewStatus, testZoom} from './interview.controller.js';
+import {
+  interview, getInterviews, joinInterview, giveFeedback, getFeedbacks,
+  addHRRemark, assignCPC, getClassOptions, selectClassCode, addStudent,
+  getRecording, rejectCandidate, updateInterviewStatus, rescheduleInterview, testZoom
+} from './interview.controller.js';
 import {protect, softProtect} from '../../middleware/auth.js';
 
 const interviewRouter = express.Router();
@@ -18,5 +22,6 @@ interviewRouter.patch("/:id/add-student", protect, addStudent);
 interviewRouter.get("/:id/recording", protect, getRecording);
 interviewRouter.post("/:id/reject", protect, rejectCandidate);
 interviewRouter.patch("/:id/status", protect, updateInterviewStatus);
+interviewRouter.patch("/:id/reschedule", protect, rescheduleInterview);
 
 export default interviewRouter;

@@ -40,8 +40,22 @@ export const updateCandidate = async (req, res) => {
 
 export const deleteCandidate = async (req, res) => {
   try {
-    const message = await candidateService.deleteCandidate(req.params.id, req.user);
+    const { reason, notes } = req.body;
+    const message = await candidateService.deleteCandidate(req.params.id, req.user, reason, notes);
     res.json({ success: true, message });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const getDeletedLog = async (req, res) => {
+  try {
+    const DeletedCandidateLog = (await import('./deletedCandidateLog.model.js')).default;
+    const logs = await DeletedCandidateLog
+      .find({})
+      .populate('deletedBy', 'name email')
+      .sort({ deletedAt: -1 });
+    res.json({ success: true, data: logs });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }

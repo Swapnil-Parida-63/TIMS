@@ -107,11 +107,14 @@ export const submitFeedback = async ({ interviewId, token, userId, feedbackText,
   let interview;
   let judge;
 
-  if (interviewId && userId) {
+  // Normalize userId to string once (handles both ObjectId and plain string)
+  const userIdStr = userId ? String(userId) : null;
+
+  if (interviewId && userIdStr) {
     // Internal judge submitting from the interview detail page
     interview = await Interview.findById(interviewId);
     if (!interview) throw new Error('Interview not found');
-    judge = interview.judges.find(j => String(j.user) === String(userId));
+    judge = interview.judges.find(j => String(j.user) === userIdStr);
     if (!judge) {
       // Admin/super_admin submitting feedback even if not listed as judge — allow it
       judge = { judgeType: 'internal', user: userId };
@@ -121,23 +124,25 @@ export const submitFeedback = async ({ interviewId, token, userId, feedbackText,
     interview = await Interview.findOne({ 'judges.token': token });
     if (!interview) throw new Error('Invalid or expired token');
     judge = interview.judges.find(j => j.token === token);
-  } else if (interviewId && !userId) {
+  } else if (interviewId && !userIdStr) {
     throw new Error('User ID required for internal feedback submission');
-  } else if (userId) {
+  } else if (userIdStr) {
     // Fallback: find interview by judge userId (legacy path)
     interview = await Interview.findOne({ 'judges.user': userId });
     if (!interview) throw new Error('User is not assigned as a judge for any interview');
-    judge = interview.judges.find(j => String(j.user) === String(userId));
+    judge = interview.judges.find(j => String(j.user) === userIdStr);
   } else {
     throw new Error('Either token or user ID must be provided');
   }
 
   const alreadySubmitted = interview.feedbacks?.find(f =>
-    token ? f.token === token : String(f.user) === String(userId)
+    token ? f.token === token : String(f.user) === userIdStr
   );
+
   if (alreadySubmitted) throw new Error('Feedback already submitted');
 
-  const totalScore = calculateTotalScore(ratings);
+  const totalScore = await calculateTotalScore(ratings);
+
 
   interview.feedbacks.push({
     judgeType: judge.judgeType || 'internal',
@@ -192,47 +197,68 @@ export const addHRRemark = async (interviewId, user, remark, feedbackIndex = 0) 
   return "HR remark added";
 };
 
-export const assignCPC = async (id, cpc, user) => {     // super admin selecting cpc
+export const assignCPC = async (id, cpcFrom, cpcTo, user) => {     // super admin selecting cpc range
   if (user.role !== "super_admin") {
     throw new Error("Only super admin allowed");
   }
 
   const interview = await Interview.findById(id);
-
   if (!interview) throw new Error("Interview not found");
+  if (!cpcFrom || !cpcTo) throw new Error("Both cpcFrom and cpcTo are required");
 
-  if (!cpc) throw new Error("CPC is required");
+  // Both must be from the same category (AP, BP, DP, EP)
+  const prefixFrom = cpcFrom.split("-")[0];
+  const prefixTo   = cpcTo.split("-")[0];
+  if (prefixFrom !== prefixTo) throw new Error("Both CPCs must be from the same category");
+
+  const category = prefixFrom;
+  const sectionKeys = Object.keys(CPC_MAP[category] || {});
+
+  const fromIdx = sectionKeys.indexOf(cpcFrom);
+  const toIdx   = sectionKeys.indexOf(cpcTo);
+  if (fromIdx === -1) throw new Error(`${cpcFrom} is not a valid CPC`);
+  if (toIdx   === -1) throw new Error(`${cpcTo} is not a valid CPC`);
+
+  // Ensure from <= to
+  const [startIdx, endIdx] = fromIdx <= toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx];
+  const resolvedFrom = sectionKeys[startIdx];
+  const resolvedTo   = sectionKeys[endIdx];
+
+  const rangeLabel = resolvedFrom === resolvedTo ? resolvedFrom : `${resolvedFrom} to ${resolvedTo}`;
 
   interview.pricing = {
-    cpc,
-    category: cpc[0],
+    cpc:      rangeLabel,   // human-readable label e.g. "AP-2 to AP-5"
+    cpcFrom:  resolvedFrom,
+    cpcTo:    resolvedTo,
+    category,
     classCode: null,
-    details: null
+    details:   null,
   };
 
   await interview.save();
-
-  return "CPC assigned";
+  return "CPC range assigned";
 };
 
+/**
+ * Returns the UNION of all class codes available across every CPC in the range.
+ */
 export const getClassOptions = async (id) => {
   const interview = await Interview.findById(id);
+  if (!interview) throw new Error("Interview not found");
+  if (!interview?.pricing?.cpcFrom) throw new Error("CPC range not assigned yet");
 
-  if (!interview) {
-    throw new Error("Interview not found");
+  const { cpcFrom, cpcTo, category } = interview.pricing;
+  const sectionKeys = Object.keys(CPC_MAP[category] || {});
+  const fromIdx = sectionKeys.indexOf(cpcFrom);
+  const toIdx   = sectionKeys.indexOf(cpcTo);
+
+  // Union all class codes in the range
+  const allCodes = new Set();
+  for (let i = fromIdx; i <= toIdx; i++) {
+    const codes = CPC_MAP[category][sectionKeys[i]] || [];
+    codes.forEach(c => allCodes.add(c));
   }
-
-  if (!interview?.pricing?.cpc) {
-    throw new Error("Not reviewed yet");
-  }
-  // console.log("CPC:", interview.pricing.cpc);
-  // console.log("MAP VALUE:", CPC_MAP[interview.pricing.cpc]);
-
-  const prefix = interview.pricing.cpc.split("-")[0];
-
-  return CPC_MAP[prefix]?.[interview.pricing.cpc];
-
-
+  return [...allCodes].sort();
 };
 
 export const selectClassCode = async (id, classCode, user) => {
@@ -312,22 +338,32 @@ export const getRecordingUrl = async (id, user) => {
   return { downloadUrl: interview.zoomRecordingUrl };
 };
 
-export const rejectCandidate = async (id, user) => {
+export const rejectCandidate = async (id, user, reason, notes = '') => {
   if (!["admin", "super_admin"].includes(user.role)) {
     throw new Error("Unauthorized");
+  }
+
+  if (!reason || !reason.trim()) {
+    throw new Error('A rejection reason must be provided');
   }
 
   const interview = await Interview.findById(id);
   if (!interview) throw new Error("Interview not found");
 
-  // 1. Mark candidate as rejected (lowercase to match enum + frontend Badge checks)
-  await Candidate.findByIdAndUpdate(interview.candidate, { status: 'rejected' });
-
-  // 2. Mark interview as cancelled
-  interview.status = 'cancelled';
+  // 1. Store reason on interview
+  interview.rejectionReason = reason;
+  interview.rejectionNotes  = notes;
+  interview.status = 'rejected';  // use 'rejected' so it's distinguishable from 'cancelled'
   await interview.save();
 
-  // 3. Delete Zoom Recording if it exists
+  // 2. Mark candidate as rejected + store reason
+  await Candidate.findByIdAndUpdate(interview.candidate, {
+    status: 'rejected',
+    rejectionReason: reason,
+    rejectionNotes:  notes,
+  });
+
+  // 3. Clean up Zoom recording
   if (interview.zoomMeetingId && interview.zoomRecordingStatus !== 'deleted') {
     try {
       await deleteRecording(interview.zoomMeetingId);
@@ -362,3 +398,35 @@ export const updateInterviewStatus = async (id, status, user) => {
   
   return interview;
 };
+
+export const rescheduleInterview = async (id, scheduledAt, user) => {
+  if (!["admin", "super_admin"].includes(user?.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  if (!scheduledAt) throw new Error("New date/time is required");
+
+  const interview = await Interview.findById(id);
+  if (!interview) throw new Error("Interview not found");
+
+  if (!["scheduled", "cancelled"].includes(interview.status)) {
+    throw new Error("Only scheduled or cancelled interviews can be rescheduled");
+  }
+
+  // Update scheduledAt in DB
+  interview.scheduledAt = new Date(scheduledAt);
+  interview.status = "scheduled"; // re-activates a cancelled interview too
+  await interview.save();
+
+  // Best-effort: update the Zoom meeting time (don't fail if Zoom is unavailable)
+  if (interview.zoomMeetingId) {
+    try {
+      const { updateZoomMeeting } = await import("../../services/zoom.service.js");
+      await updateZoomMeeting(interview.zoomMeetingId, scheduledAt);
+    } catch (err) {
+      console.error("Zoom reschedule failed (non-critical):", err.message);
+    }
+  }
+
+  return interview;
+};

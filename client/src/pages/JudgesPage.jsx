@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { UserPlus, RefreshCw, Shield, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
+import { UserPlus, RefreshCw, Shield, Trash2, AlertTriangle, CalendarClock } from 'lucide-react';
 import { getUsers, createUser, updateUserRole, deleteUser } from '../services/api';
 import { useAuthStore } from '../store/authStore';
-import { canManageJudges, canViewJudges, ROLE_LABELS, ROLE_COLORS, ROLES } from '../utils/rbac';
+import { useNavigate } from 'react-router-dom';
+import { canManageJudges, canViewJudges, canSchedule, ROLE_LABELS, ROLE_COLORS, ROLES } from '../utils/rbac';
 import { Modal } from '../components/common/Modal';
 import clsx from 'clsx';
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
 const RoleBadge = ({ role }) => (
   <span className={clsx(
@@ -15,9 +18,18 @@ const RoleBadge = ({ role }) => (
   </span>
 );
 
+// Roles that can be managed/assigned via the UI (super_admin is fixed — can't be changed)
+const MANAGEABLE_ROLES = [
+  { value: 'admin',    label: 'Admin' },
+  { value: 'panelist', label: 'Panelist' },
+];
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export const JudgesPage = () => {
   const { user } = useAuthStore();
   const role = user?.role;
+  const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,9 +38,7 @@ export const JudgesPage = () => {
   const [actionMsg, setActionMsg] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({
-    name: '', email: '', password: '', role: 'expert',
-  });
+  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', role: 'panelist' });
 
   if (!canViewJudges(role)) {
     return (
@@ -40,6 +50,7 @@ export const JudgesPage = () => {
     );
   }
 
+  // ─── Data Fetch ────────────────────────────────────────────────────────────
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -54,6 +65,7 @@ export const JudgesPage = () => {
 
   useEffect(() => { fetchData(); }, []);
 
+  // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleRoleChange = async (userId, newRole) => {
     if (!canManageJudges(role)) return;
     try {
@@ -69,9 +81,8 @@ export const JudgesPage = () => {
     setActionMsg('');
     try {
       await createUser(form);
-      setActionMsg('');
       setAddOpen(false);
-      setForm({ name: '', email: '', password: '', role: 'expert' });
+      setForm({ name: '', email: '', password: '', phone: '', role: 'panelist' });
       fetchData();
     } catch (err) {
       setActionMsg(err.response?.data?.message || 'Failed to create user');
@@ -91,48 +102,50 @@ export const JudgesPage = () => {
     }
   };
 
-  // Only show judge-relevant roles (not super_admin in this list view — admins see all)
-  const judgeUsers = users.filter(u => ['expert', 'micro_observer', 'admin'].includes(u.role));
+  // Separate super admins (badge-only) from everyone else
   const superAdmins = users.filter(u => u.role === 'super_admin');
+  const others      = users.filter(u => u.role !== 'super_admin');
+  const allSorted   = [...superAdmins, ...others];
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Judge Management</h2>
-          <p className="text-slate-500 text-sm mt-0.5">
-            {judgeUsers.length} evaluators in system
-          </p>
+          <h2 className="text-xl font-bold text-slate-800">Panelist Management</h2>
+          <p className="text-slate-500 text-sm mt-0.5">{users.length} users in system</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={fetchData}
-            className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-purple-600 px-3 py-2 rounded-lg hover:bg-purple-50 transition border border-slate-200"
-          >
+          <button onClick={fetchData}
+            className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-purple-600 px-3 py-2 rounded-lg hover:bg-purple-50 transition border border-slate-200">
             <RefreshCw size={14} /> Refresh
           </button>
+          {canSchedule(role) && (
+            <button onClick={() => navigate('/meetings')}
+              className="flex items-center gap-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 px-4 py-2 rounded-lg transition">
+              <CalendarClock size={15} /> Schedule Meeting
+            </button>
+          )}
           {canManageJudges(role) && (
-            <button
-              onClick={() => { setAddOpen(true); setActionMsg(''); }}
-              className="flex items-center gap-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition shadow-sm shadow-purple-500/20"
-            >
-              <UserPlus size={15} /> Add Evaluator
+            <button onClick={() => { setAddOpen(true); setActionMsg(''); }}
+              className="flex items-center gap-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition shadow-sm shadow-purple-500/20">
+              <UserPlus size={15} /> Add Panelist
             </button>
           )}
         </div>
       </div>
 
-      {/* Role Hierarchy Info Banner */}
+      {/* Role Hierarchy Banner */}
       <div className="mb-5 flex flex-wrap gap-2 items-center bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
         <Shield size={15} className="text-purple-600 shrink-0" />
         <span className="text-xs font-semibold text-purple-700">Role Hierarchy:</span>
-        {[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MICRO_OBSERVER, ROLES.EXPERT].map((r, i, arr) => (
+        {[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PANELIST].map((r, i, arr) => (
           <React.Fragment key={r}>
             <RoleBadge role={r} />
             {i < arr.length - 1 && <span className="text-purple-400 text-xs">›</span>}
           </React.Fragment>
         ))}
+        <span className="ml-auto text-xs text-slate-400 italic">Interview roles (Micro Observer / Subject Expert) are assigned per interview when scheduling</span>
       </div>
 
       {/* Main Table */}
@@ -148,6 +161,7 @@ export const JudgesPage = () => {
                 <th className="text-left px-5 py-3.5 font-semibold text-slate-600 text-xs uppercase tracking-wide">#</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-slate-600 text-xs uppercase tracking-wide">Name</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-slate-600 text-xs uppercase tracking-wide">Email</th>
+                <th className="text-left px-5 py-3.5 font-semibold text-slate-600 text-xs uppercase tracking-wide">Phone</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-slate-600 text-xs uppercase tracking-wide">Role</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-slate-600 text-xs uppercase tracking-wide">Added</th>
                 {canManageJudges(role) && (
@@ -156,12 +170,19 @@ export const JudgesPage = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((u, i) => (
+              {allSorted.map((u, i) => (
                 <tr key={u._id} className="border-b border-slate-50 hover:bg-purple-50/20 transition-colors">
                   <td className="px-5 py-4 text-slate-400">{i + 1}</td>
                   <td className="px-5 py-4 font-medium text-slate-800">{u.name || '—'}</td>
                   <td className="px-5 py-4 text-slate-600">{u.email}</td>
+                  <td className="px-5 py-4 text-slate-600">
+                    {u.phone
+                      ? <span className="font-mono text-sm">{u.phone}</span>
+                      : <span className="text-slate-300 text-xs italic">—</span>
+                    }
+                  </td>
                   <td className="px-5 py-4">
+                    {/* Super admin badge is non-editable */}
                     {canManageJudges(role) && u.role !== 'super_admin' ? (
                       <select
                         value={u.role}
@@ -171,9 +192,9 @@ export const JudgesPage = () => {
                           ROLE_COLORS[u.role]
                         )}
                       >
-                        <option value="expert">Expert</option>
-                        <option value="micro_observer">Micro Observer</option>
-                        <option value="admin">Admin</option>
+                        {MANAGEABLE_ROLES.map(r => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
                       </select>
                     ) : (
                       <RoleBadge role={u.role} />
@@ -185,11 +206,9 @@ export const JudgesPage = () => {
                   {canManageJudges(role) && (
                     <td className="px-5 py-4">
                       {u.role !== 'super_admin' && u._id !== user?._id && (
-                        <button
-                          onClick={() => setDeleteTarget(u)}
+                        <button onClick={() => setDeleteTarget(u)}
                           className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                          title="Remove user"
-                        >
+                          title="Remove user">
                           <Trash2 size={15} />
                         </button>
                       )}
@@ -202,38 +221,34 @@ export const JudgesPage = () => {
         )}
       </div>
 
-      {/* Add User Modal */}
-      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Add Evaluator">
+      {/* Add Panelist Modal */}
+      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Add Panelist">
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-slate-500">Create a new evaluator account. They can log in using these credentials.</p>
+          <p className="text-sm text-slate-500">
+            Create a new panelist account. They can log in using these credentials and be assigned
+            as <strong>Micro Observer</strong> or <strong>Subject Expert</strong> when scheduling interviews.
+          </p>
 
           {[
-            { label: 'Full Name', key: 'name', type: 'text', placeholder: 'e.g. Dr. Ramesh Kumar' },
-            { label: 'Email Address', key: 'email', type: 'email', placeholder: 'judge@thementr.com' },
-            { label: 'Password', key: 'password', type: 'password', placeholder: 'Min 8 characters' },
+            { label: 'Full Name',     key: 'name',     type: 'text',     placeholder: 'e.g. Dr. Ramesh Kumar' },
+            { label: 'Email Address', key: 'email',    type: 'email',    placeholder: 'panelist@thementr.com' },
+            { label: 'Phone Number', key: 'phone',    type: 'tel',      placeholder: '+91 98765 43210' },
+            { label: 'Password',      key: 'password', type: 'password', placeholder: 'Min 8 characters' },
           ].map(({ label, key, type, placeholder }) => (
             <div key={key} className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-slate-600">{label}</label>
-              <input
-                type={type}
-                placeholder={placeholder}
-                value={form[key]}
+              <input type={type} placeholder={placeholder} value={form[key]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition"
-              />
+                className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition" />
             </div>
           ))}
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-slate-600">Assign Role</label>
-            <select
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 bg-white"
-            >
-              <option value="expert">Expert (lowest — submit only)</option>
-              <option value="micro_observer">Micro Observer (can view expert feedback)</option>
-              <option value="admin">Admin (full read, no finalize)</option>
+            <label className="text-sm font-semibold text-slate-600">Global Role</label>
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+              className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 bg-white">
+              <option value="panelist">Panelist — can be assigned as Micro Observer or Subject Expert per interview</option>
+              <option value="admin">Admin — full read access, can schedule interviews</option>
             </select>
           </div>
 
@@ -242,17 +257,12 @@ export const JudgesPage = () => {
           )}
 
           <div className="flex gap-2 mt-1">
-            <button
-              onClick={handleCreate}
-              disabled={saving || !form.name || !form.email}
-              className="flex-1 bg-purple-600 text-white font-bold py-2.5 rounded-xl hover:bg-purple-700 disabled:opacity-50 transition text-sm"
-            >
-              {saving ? 'Creating...' : 'Create Evaluator'}
+            <button onClick={handleCreate} disabled={saving || !form.name || !form.email}
+              className="flex-1 bg-purple-600 text-white font-bold py-2.5 rounded-xl hover:bg-purple-700 disabled:opacity-50 transition text-sm">
+              {saving ? 'Creating...' : 'Create Panelist'}
             </button>
-            <button
-              onClick={() => setAddOpen(false)}
-              className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
+            <button onClick={() => setAddOpen(false)}
+              className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
               Cancel
             </button>
           </div>
@@ -260,7 +270,7 @@ export const JudgesPage = () => {
       </Modal>
 
       {/* Delete Confirm Modal */}
-      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Remove Evaluator">
+      <Modal isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Remove Panelist">
         <div className="flex flex-col gap-4">
           <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-xl p-4">
             <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" />
@@ -270,16 +280,12 @@ export const JudgesPage = () => {
             </p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={handleDelete}
-              className="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-xl hover:bg-red-700 transition text-sm"
-            >
+            <button onClick={handleDelete}
+              className="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-xl hover:bg-red-700 transition text-sm">
               Yes, Remove
             </button>
-            <button
-              onClick={() => setDeleteTarget(null)}
-              className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
+            <button onClick={() => setDeleteTarget(null)}
+              className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
               Cancel
             </button>
           </div>

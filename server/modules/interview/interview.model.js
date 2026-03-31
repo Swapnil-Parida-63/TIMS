@@ -28,7 +28,13 @@ const interviewSchema = new mongoose.Schema(
           ref: "User", // for internal
         },
         email: String,
-        token: String // for external
+        token: String, // for external
+        // Per-interview role assignment (independent of global user role)
+        interviewRole: {
+          type: String,
+          enum: ["micro_observer", "subject_expert", null],
+          default: null,
+        },
       },
     ],
 
@@ -50,6 +56,9 @@ const interviewSchema = new mongoose.Schema(
       enum: ["scheduled", "completed", "cancelled", "selected", "rejected"],
       default: "scheduled",
     },
+
+    rejectionReason: { type: String, default: null },
+    rejectionNotes:  { type: String, default: null },
 
 feedbacks: [
   {
@@ -103,7 +112,9 @@ feedbacks: [
 ],
 
 pricing: {
-  cpc: String,           // AP-1 (super admin)
+  cpc: String,           // human-readable range label e.g. "AP-2 to AP-5" (super admin)
+  cpcFrom: String,       // start of range e.g. "AP-2"
+  cpcTo: String,         // end of range e.g. "AP-5"
   category: String,      // A/B/D/E (super admin)
 
   classCode: String,     // A-4 (admin)

@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Video, UserCheck, LogOut, PanelLeftClose, PanelLeft, UserCircle, Shield, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Video, UserCheck, LogOut, PanelLeftClose, PanelLeft, UserCircle, Shield, Settings, CalendarClock } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { canViewJudges } from '../../utils/rbac';
 import clsx from 'clsx';
@@ -13,9 +13,10 @@ export const Sidebar = ({ collapsed, setCollapsed }) => {
     { label: 'Dashboard', icon: LayoutDashboard, to: '/', show: true },
     { label: 'Candidates', icon: Users, to: '/candidates', show: true },
     { label: 'Interviews', icon: Video, to: '/interviews', show: true },
-    { label: 'Judges', icon: Shield, to: '/judges', show: canViewJudges(user?.role) },
-    { label: 'Teachers', icon: UserCheck, to: '/teachers', show: true },
-    { label: 'Settings', icon: Settings, to: '/settings', show: user?.role === 'super_admin' },
+    { label: 'Panelists', icon: Shield,        to: '/judges',   show: canViewJudges(user?.role) },
+    { label: 'Teachers',  icon: UserCheck,      to: '/teachers', show: true },
+    { label: 'Meetings',  icon: CalendarClock,  to: '/meetings', show: ['super_admin', 'admin'].includes(user?.role) },
+    { label: 'Settings',  icon: Settings,       to: '/settings', show: user?.role === 'super_admin' },
   ].filter(item => item.show);
 
   const handleLogout = () => {

@@ -67,7 +67,8 @@ export const giveFeedback = async (req, res) => {
     try {
       const token = req.query.token || req.body.token;
       const { feedback, ratings, interviewId } = req.body;
-      const userId = req.user?._id;  // internal users — set by protect middleware
+      // Priority: JWT-decoded user (softProtect) → body userId → body token
+      const userId = req.user?._id || req.body.userId;
 
       const result = await interviewService.submitFeedback({
         interviewId,
@@ -141,10 +142,10 @@ export const addHRRemark = async (req, res) => {
 export const assignCPC = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cpc } = req.body;
+    const { cpcFrom, cpcTo } = req.body;
     const user = req.user;
 
-    const result = await interviewService.assignCPC(id, cpc, user);
+    const result = await interviewService.assignCPC(id, cpcFrom, cpcTo, user);
 
     res.json({ success: true, message: result });
   } catch (err) {
@@ -219,7 +220,8 @@ export const getRecording = async (req, res) => {
 export const rejectCandidate = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await interviewService.rejectCandidate(id, req.user);
+    const { reason, notes } = req.body;
+    const result = await interviewService.rejectCandidate(id, req.user, reason, notes);
     res.json({ success: true, message: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -236,3 +238,14 @@ export const updateInterviewStatus = async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 };
+
+export const rescheduleInterview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scheduledAt } = req.body;
+    const interview = await interviewService.rescheduleInterview(id, scheduledAt, req.user);
+    res.json({ success: true, data: interview, message: 'Interview rescheduled successfully' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};

@@ -137,9 +137,13 @@ export async function createCandidateFromWebhook(rawData) {
  * - Cascades to delete linked interviews + Zoom recordings.
  * - Teacher records are completely independent — they are NOT affected.
  */
-export async function deleteCandidate(id, user) {
+export async function deleteCandidate(id, user, reason, notes = '') {
   if (!['admin', 'super_admin'].includes(user?.role)) {
     throw new Error('Unauthorized — only admin or super_admin can delete candidates');
+  }
+
+  if (!reason || !reason.trim()) {
+    throw new Error('A deletion reason must be provided');
   }
 
   const candidate = await Candidate.findById(id);
@@ -154,6 +158,18 @@ export async function deleteCandidate(id, user) {
       `Remove them from the Teachers list first.`
     );
   }
+
+  // ── Log before deleting ────────────────────────────────────────────────────
+  const DeletedCandidateLog = (await import('./deletedCandidateLog.model.js')).default;
+  await DeletedCandidateLog.create({
+    firstName:  candidate.firstName,
+    lastName:   candidate.lastName,
+    email:      candidate.email,
+    phone:      candidate.phone,
+    reason,
+    notes,
+    deletedBy:  user._id,
+  });
 
   // Cascade: delete all linked interviews + their Zoom recordings
   const Interview = (await import('../interview/interview.model.js')).default;
@@ -174,4 +190,5 @@ export async function deleteCandidate(id, user) {
   await candidate.deleteOne();
   return `Candidate "${candidate.firstName} ${candidate.lastName}" and ${interviews.length} linked interview(s) permanently deleted.`;
 }
+
 

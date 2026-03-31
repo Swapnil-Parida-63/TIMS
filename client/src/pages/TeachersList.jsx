@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshCw, FileText, Trash2, AlertTriangle } from 'lucide-react';
+import { RefreshCw, FileText, Trash2, AlertTriangle, CalendarClock } from 'lucide-react';
 import { getTeachers, getTeacherLoAUrl, deleteTeacher } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { useNavigate } from 'react-router-dom';
 import { Modal } from '../components/common/Modal';
 
 export const TeachersList = () => {
@@ -11,6 +12,7 @@ export const TeachersList = () => {
   const [deleting, setDeleting] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState('');
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const isAdminOrAbove = ['super_admin', 'admin'].includes(user?.role);
 
   const fetchData = async () => {
@@ -54,9 +56,17 @@ export const TeachersList = () => {
           <h2 className="text-xl font-bold text-slate-800">Teachers</h2>
           <p className="text-slate-500 text-sm mt-0.5">{teachers.length} finalized teacher{teachers.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={fetchData} className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-purple-600 px-3 py-2 rounded-lg hover:bg-purple-50 transition border border-slate-200">
-          <RefreshCw size={14} /> Refresh
-        </button>
+        <div className="flex gap-2">
+          {isAdminOrAbove && (
+            <button onClick={() => navigate('/meetings')}
+              className="flex items-center gap-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 px-4 py-2 rounded-lg transition">
+              <CalendarClock size={14} /> Schedule Meeting
+            </button>
+          )}
+          <button onClick={fetchData} className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-purple-600 px-3 py-2 rounded-lg hover:bg-purple-50 transition border border-slate-200">
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">

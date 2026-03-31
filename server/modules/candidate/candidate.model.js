@@ -34,6 +34,9 @@ const candidateSchema = new mongoose.Schema({
   experience: String,
   currentAddress: String,
   declaration: String,
+  rejectionReason: { type: String, default: null }, // set when status = 'rejected'
+  rejectionNotes:  { type: String, default: null }, // optional extra context
+
 
   // ─── Teaching Profile (new fields) ───────────────────────────────────────
   boardsToTeach:     { type: [String], default: [] },  // boards willing to teach

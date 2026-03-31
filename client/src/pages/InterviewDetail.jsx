@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   getInterviews, getFeedbacks, submitFeedback,
-  updateInterviewStatus, assignCPC, getClassOptions, finalizeTeacher
+  updateInterviewStatus, assignCPC, getClassOptions, finalizeTeacher, rescheduleInterview
 } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useDataStore } from '../store/dataStore';
@@ -14,7 +14,8 @@ import {
   canViewSomeFeedback, canSubmitFeedback,
   canViewRecording, canFinalize
 } from '../utils/rbac';
-import { CPC_MAP, SECTION_LABELS } from '../utils/cpcMap';
+import { CPC_MAP, SECTION_LABELS, getCpcPriceRange, formatPriceRange } from '../utils/cpcMap';
+
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
 import { MultiSelect } from '../components/common/MultiSelect';
@@ -56,7 +57,7 @@ const FeedbackCard = ({ feedback }) => {
     <div className="border border-slate-100 rounded-xl p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-          {feedback.judgeType === 'internal' ? 'Internal Judge' : 'External Expert'}
+          {feedback.judgeType === 'internal' ? 'Internal Panelist' : 'External Panelist'}
         </span>
         <span className="text-xs text-slate-400">
           {feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateString('en-IN') : ''}
@@ -87,76 +88,142 @@ const FeedbackCard = ({ feedback }) => {
   );
 };
 
-// ─── CPC Picker (super admin only) ──────────────────────────────────────────
+// ─── CPC Range Picker (super admin only) ────────────────────────────────────
+// Step 1: pick category, Step 2: pick From CPC, Step 3: pick To CPC
+// Auto-sorts so from <= to. Previews the computed range label.
 
-const CpcPicker = ({ value, onChange }) => {
-  const [openSection, setOpenSection] = useState(null);
-  const [searchVal, setSearchVal] = useState(value || '');
+const CpcRangePicker = ({ value, onChange }) => {
+  const categories = Object.keys(CPC_MAP);
+  const [category, setCategory] = useState(value.from ? value.from.split('-')[0] : '');
 
-  const handleSearchChange = (e) => {
-    const v = e.target.value.toUpperCase();
-    setSearchVal(v);
-    // Validate and propagate only known CPCs
-    for (const section of Object.values(CPC_MAP)) {
-      if (section[v]) { onChange(v); return; }
+  const cpcKeys = category ? Object.keys(CPC_MAP[category]) : [];
+  const fromIdx  = value.from ? cpcKeys.indexOf(value.from) : -1;
+  const toIdx    = value.to   ? cpcKeys.indexOf(value.to)   : -1;
+
+  // Compute the range preview label
+  const getLabel = (from, to) => {
+    if (!from) return '';
+    if (!to || from === to) return from;
+    const fi = cpcKeys.indexOf(from);
+    const ti = cpcKeys.indexOf(to);
+    const [s, e] = fi <= ti ? [from, to] : [to, from];
+    return `${s} to ${e}`;
+  };
+
+  const rangeLabel = getLabel(value.from, value.to);
+
+  // Which CPCs are inside the selected range (for highlighting)
+  const inRange = (cpc) => {
+    if (!value.from || !value.to) return cpc === value.from;
+    const fi = Math.min(fromIdx, toIdx);
+    const ti = Math.max(fromIdx, toIdx);
+    const ci = cpcKeys.indexOf(cpc);
+    return ci >= fi && ci <= ti;
+  };
+
+  const handleCpcClick = (cpc) => {
+    if (!value.from || (value.from && value.to)) {
+      // First click — set From, clear To
+      onChange({ from: cpc, to: '' });
+    } else {
+      // Second click — set To
+      onChange({ from: value.from, to: cpc });
     }
-    onChange(v);
+  };
+
+  const handleCategoryChange = (cat) => {
+    setCategory(cat);
+    onChange({ from: '', to: '' });
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex gap-2">
-        <input
-          value={searchVal}
-          onChange={handleSearchChange}
-          placeholder="e.g. AP-3"
-          className="flex-1 px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 font-mono uppercase"
-        />
-        {value && (
-          <span className="flex items-center px-4 py-2 bg-purple-50 text-purple-700 font-bold text-sm rounded-xl border border-purple-200">
-            ✓ {value}
-          </span>
-        )}
+    <div className="flex flex-col gap-4">
+      {/* Step 1: Category */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Category</label>
+        <div className="flex gap-2">
+          {categories.map(cat => (
+            <button key={cat} type="button" onClick={() => handleCategoryChange(cat)}
+              className={clsx(
+                'flex-1 py-2 rounded-xl text-xs font-bold border transition',
+                category === cat
+                  ? 'bg-purple-600 text-white border-purple-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-purple-400'
+              )}>
+              {cat}
+            </button>
+          ))}
+        </div>
+        {category && <p className="text-xs text-slate-400">{SECTION_LABELS[category]}</p>}
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-slate-400">
-        <div className="flex-1 h-px bg-slate-100" />or browse<div className="flex-1 h-px bg-slate-100" />
-      </div>
+      {/* Step 2+3: Select From and To within chosen category */}
+      {category && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              {!value.from ? 'Select start of range' : !value.to ? 'Now select end of range' : 'Range selected'}
+            </label>
+            {(value.from || value.to) && (
+              <button type="button" onClick={() => onChange({ from: '', to: '' })}
+                className="text-xs text-red-400 hover:text-red-600 transition">Clear</button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {cpcKeys.map(cpc => {
+              const isFrom = cpc === value.from;
+              const isTo   = cpc === value.to;
+              const inside = inRange(cpc);
+              const pr     = getCpcPriceRange(cpc);
+              return (
+                <button key={cpc} type="button" onClick={() => handleCpcClick(cpc)}
+                  className={clsx(
+                    'py-2.5 px-3 rounded-xl border transition text-left flex flex-col gap-0.5',
+                    isFrom || isTo
+                      ? 'bg-purple-600 text-white border-purple-600'
+                      : inside
+                        ? 'bg-purple-100 text-purple-700 border-purple-300'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-purple-400 hover:bg-purple-50'
+                  )}>
+                  <span className="text-xs font-bold">{cpc}</span>
+                  {pr && (
+                    <span className={clsx(
+                      'text-[10px] leading-tight',
+                      isFrom || isTo ? 'text-purple-200' : inside ? 'text-purple-500' : 'text-slate-400'
+                    )}>
+                      {formatPriceRange(pr)}/mo
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-      <div className="flex flex-col gap-2">
-        {Object.entries(CPC_MAP).map(([section, codes]) => {
-          const isOpen = openSection === section;
-          return (
-            <div key={section} className="border border-slate-100 rounded-xl overflow-hidden">
-              <button type="button"
-                onClick={() => setOpenSection(isOpen ? null : section)}
-                className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-white bg-purple-600 w-8 h-8 rounded-lg flex items-center justify-center shrink-0">{section}</span>
-                  <span className="text-sm font-medium text-slate-700">{SECTION_LABELS[section]}</span>
-                </div>
-                {isOpen ? <ChevronDown size={15} className="text-slate-400" /> : <ChevronRight size={15} className="text-slate-400" />}
-              </button>
-              {isOpen && (
-                <div className="p-3 grid grid-cols-5 gap-2 bg-white">
-                  {Object.keys(codes).map(cpc => (
-                    <button key={cpc} type="button"
-                      onClick={() => { onChange(cpc); setSearchVal(cpc); }}
-                      className={clsx(
-                        'px-2 py-2 rounded-lg text-xs font-bold border transition text-center',
-                        value === cpc
-                          ? 'bg-purple-600 text-white border-purple-600'
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-purple-400 hover:text-purple-700'
-                      )}>
-                      {cpc}
-                    </button>
-                  ))}
-                </div>
-              )}
+      {/* Range preview — shows CPC range + combined price span */}
+      {rangeLabel && (() => {
+        const fromPr = value.from ? getCpcPriceRange(value.from) : null;
+        const toPr   = value.to   ? getCpcPriceRange(value.to)   : null;
+        const minPrice = fromPr && toPr ? Math.min(fromPr.min, toPr.min) : fromPr?.min;
+        const maxPrice = fromPr && toPr ? Math.max(fromPr.max, toPr.max) : fromPr?.max;
+        return (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl px-4 py-3 flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-purple-500 uppercase tracking-wide">Selected Range</span>
+              <span className="text-sm font-bold text-purple-800 ml-auto">{rangeLabel}</span>
             </div>
-          );
-        })}
-      </div>
+            {minPrice && maxPrice && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-purple-400 uppercase tracking-wide">Price Span</span>
+                <span className="text-xs font-bold text-purple-700 ml-auto">
+                  {formatPriceRange({ min: minPrice, max: maxPrice })}/mo
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 };
@@ -164,7 +231,7 @@ const CpcPicker = ({ value, onChange }) => {
 // ─── Admin Class Config Panel ────────────────────────────────────────────────
 // Shown inline on the InterviewDetail page for admin when CPC is set.
 
-const AdminClassConfig = ({ interviewId, cpc, onSuccess }) => {
+const AdminClassConfig = ({ interviewId, cpcRange, onSuccess }) => {
   const [classOptions, setClassOptions] = useState([]);
   const [classCode, setClassCode] = useState('');
   const [selectedBoards, setSelectedBoards] = useState([]);
@@ -174,20 +241,18 @@ const AdminClassConfig = ({ interviewId, cpc, onSuccess }) => {
   const [msg, setMsg] = useState('');
   const { triggerRefresh } = useDataStore();
 
-  // Load class options for this CPC
+  // Load class options — now returns union of entire CPC range from server
   useEffect(() => {
     const fetchOptions = async () => {
       try {
         const res = await getClassOptions(interviewId);
         setClassOptions(res.data?.data || []);
-      } catch {
-        // CPC not yet fetched via getClassOptions — derive from frontend map
-        const section = Object.entries(CPC_MAP).find(([, codes]) => codes[cpc]);
-        if (section) setClassOptions(section[1][cpc] || []);
+      } catch (err) {
+        setMsg(`Could not load class options: ${err.response?.data?.message || err.message}`);
       }
     };
-    if (cpc) fetchOptions();
-  }, [interviewId, cpc]);
+    fetchOptions();
+  }, [interviewId]);
 
   const handleFinalize = async () => {
     if (!classCode) { setMsg('Select a class code.'); return; }
@@ -218,7 +283,7 @@ const AdminClassConfig = ({ interviewId, cpc, onSuccess }) => {
         <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">Admin</span>
         <h3 className="text-sm font-bold text-slate-700">Class Configuration</h3>
         <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 ml-auto">
-          CPC: {cpc} ✓
+          CPC Range: {cpcRange} ✓
         </span>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -283,11 +348,17 @@ export const InterviewDetail = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState('');
 
-  // Super admin CPC modal
+  // Super admin CPC range modal
   const [cpcModalOpen, setCpcModalOpen] = useState(false);
-  const [selectedCpc, setSelectedCpc] = useState('');
-  const [cpcLoading, setCpcLoading] = useState(false);
-  const [cpcMsg, setCpcMsg] = useState('');
+  const [selectedCpc, setSelectedCpc] = useState({ from: '', to: '' }); // {from, to}
+  const [cpcLoading, setCpcLoading]     = useState(false);
+  const [cpcMsg, setCpcMsg]             = useState('');
+
+  // Reschedule
+  const [rescheduleOpen, setRescheduleOpen]       = useState(false);
+  const [newScheduledAt, setNewScheduledAt]       = useState('');
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleMsg, setRescheduleMsg]         = useState('');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -297,7 +368,7 @@ export const InterviewDetail = () => {
       const found = all.find(iv => iv._id === id);
       setInterview(found || null);
 
-      if (found?.pricing?.cpc) setSelectedCpc(found.pricing.cpc);
+      if (found?.pricing?.cpcFrom) setSelectedCpc({ from: found.pricing.cpcFrom, to: found.pricing.cpcTo || '' });
 
       if (found && canViewSomeFeedback(role)) {
         try {
@@ -317,9 +388,25 @@ export const InterviewDetail = () => {
   const handleMarkCompleted = async () => {
     try {
       await updateInterviewStatus(id, 'completed');
-      triggerRefresh(); // sync candidates page too
+      triggerRefresh();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed');
+    }
+  };
+
+  const handleReschedule = async () => {
+    if (!newScheduledAt) { setRescheduleMsg('Please select a new date & time.'); return; }
+    setRescheduleLoading(true);
+    setRescheduleMsg('');
+    try {
+      await rescheduleInterview(id, newScheduledAt);
+      setRescheduleOpen(false);
+      setNewScheduledAt('');
+      triggerRefresh();
+    } catch (err) {
+      setRescheduleMsg(err.response?.data?.message || 'Reschedule failed.');
+    } finally {
+      setRescheduleLoading(false);
     }
   };
 
@@ -342,17 +429,16 @@ export const InterviewDetail = () => {
     }
   };
 
-  // Super admin confirms CPC — closes modal, admin can then proceed
+  // Super admin confirms CPC range — closes modal, admin can then proceed
   const handleConfirmCpc = async () => {
-    if (!selectedCpc) { setCpcMsg('Select a CPC first.'); return; }
-    const valid = Object.values(CPC_MAP).some(codes => codes[selectedCpc]);
-    if (!valid) { setCpcMsg(`"${selectedCpc}" is not a valid CPC code.`); return; }
+    if (!selectedCpc.from) { setCpcMsg('Select the start of the CPC range.'); return; }
+    if (!selectedCpc.to)   { setCpcMsg('Select the end of the CPC range (can be same as start for a single CPC).'); return; }
     setCpcLoading(true);
     setCpcMsg('');
     try {
-      await assignCPC(id, selectedCpc);
+      await assignCPC(id, selectedCpc.from, selectedCpc.to);
       setCpcModalOpen(false);
-      triggerRefresh(); // all pages refresh — admin will see class config
+      triggerRefresh();
     } catch (err) {
       setCpcMsg(err.response?.data?.message || 'CPC assignment failed');
     } finally {
@@ -391,7 +477,7 @@ export const InterviewDetail = () => {
               <Badge status={interview.status} />
               {cpcAssigned && (
                 <span className="text-xs font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
-                  CPC: {cpcAssigned}
+                  CPC Range: {cpcAssigned}
                 </span>
               )}
               {interview.scheduledAt && (
@@ -408,6 +494,12 @@ export const InterviewDetail = () => {
             <button onClick={handleMarkCompleted}
               className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl hover:bg-emerald-100 transition">
               <CheckCircle2 size={15} /> Mark Completed
+            </button>
+          )}
+          {['scheduled', 'cancelled'].includes(interview.status) && ['super_admin', 'admin'].includes(role) && (
+            <button onClick={() => { setRescheduleOpen(true); setRescheduleMsg(''); setNewScheduledAt(''); }}
+              className="flex items-center gap-1.5 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl hover:bg-blue-100 transition">
+              <Clock size={15} /> Reschedule
             </button>
           )}
           {/* Super Admin: CPC selection button — only shown when interview completed & CPC not yet set */}
@@ -433,11 +525,11 @@ export const InterviewDetail = () => {
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <h3 className="text-sm font-bold text-slate-700 mb-4 pb-2 border-b border-slate-100">Interview Info</h3>
             <div className="flex flex-col gap-3">
-              <InfoRow label="Status" value={<Badge status={interview.status} />} />
+              <InfoRow label="Status"    value={<Badge status={interview.status} />} />
               <InfoRow label="Scheduled" value={interview.scheduledAt ? new Date(interview.scheduledAt).toLocaleString('en-IN') : null} />
-              <InfoRow label="Judges" value={`${interview.judges?.length || 0} assigned`} />
+              <InfoRow label="Panelists" value={`${interview.judges?.length || 0} assigned`} />
               <InfoRow label="Feedbacks" value={`${interview.feedbacks?.length || 0} received`} />
-              {cpcAssigned && <InfoRow label="CPC Assigned" value={cpcAssigned} />}
+              {cpcAssigned && <InfoRow label="CPC Range" value={cpcAssigned} />}
               {/* Join Zoom — only active when interview is still scheduled */}
               {interview.zoomJoinUrl && interview.status === 'scheduled' && (
                 <a href={interview.zoomJoinUrl} target="_blank" rel="noopener noreferrer"
@@ -482,7 +574,7 @@ export const InterviewDetail = () => {
             cpcAssigned ? (
               <AdminClassConfig
                 interviewId={id}
-                cpc={cpcAssigned}
+                cpcRange={cpcAssigned}
                 onSuccess={() => navigate('/teachers')}
               />
             ) : (
@@ -594,29 +686,66 @@ export const InterviewDetail = () => {
         </div>
       </div>
 
-      {/* ── Super Admin CPC-Only Modal ── */}
-      <Modal isOpen={cpcModalOpen} onClose={() => setCpcModalOpen(false)} title="Assign CPC — Select Candidate" maxWidth="max-w-2xl">
+      {/* ── Super Admin CPC Range Modal ── */}
+      <Modal isOpen={cpcModalOpen} onClose={() => setCpcModalOpen(false)} title="Assign CPC Range" maxWidth="max-w-2xl">
         <div className="flex flex-col gap-5">
           <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
             <span className="text-xs font-bold text-purple-700 bg-purple-200 px-2.5 py-1 rounded-full">Super Admin Only</span>
             <p className="text-sm text-purple-800">
-              Assign CPC for <strong>{candidateName}</strong>. Once confirmed, Admin can configure class details.
+              Select a <strong>CPC range</strong> for <strong>{candidateName}</strong>. Click once for start, click again for end. Admin will see all class codes within the range.
             </p>
           </div>
 
-          <CpcPicker value={selectedCpc} onChange={setSelectedCpc} />
+          <CpcRangePicker value={selectedCpc} onChange={setSelectedCpc} />
 
           {cpcMsg && (
             <div className="text-sm px-4 py-3 bg-red-50 border border-red-100 text-red-700 rounded-xl">{cpcMsg}</div>
           )}
 
           <div className="flex gap-2 mt-1">
-            <button onClick={handleConfirmCpc} disabled={!selectedCpc || cpcLoading}
+            <button onClick={handleConfirmCpc} disabled={!selectedCpc.from || !selectedCpc.to || cpcLoading}
               className="flex-1 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 transition text-sm">
-              {cpcLoading ? 'Assigning...' : `Confirm CPC: ${selectedCpc || '—'}`}
+              {cpcLoading ? 'Assigning...' : selectedCpc.from && selectedCpc.to
+                ? `Confirm Range: ${selectedCpc.from} to ${selectedCpc.to}`
+                : 'Select a range above'}
             </button>
             <button onClick={() => setCpcModalOpen(false)}
               className="px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Reschedule Modal ── */}
+      <Modal isOpen={rescheduleOpen} onClose={() => { setRescheduleOpen(false); setRescheduleMsg(''); }} title="Reschedule Interview">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm text-blue-700">
+            <Clock size={15} className="shrink-0 mt-0.5" />
+            <span>
+              Pick a new date & time for <strong>{candidateName}</strong>'s interview.
+              The Zoom meeting will be updated automatically.
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">New Date & Time <span className="text-red-500">*</span></label>
+            <input type="datetime-local" value={newScheduledAt} onChange={e => setNewScheduledAt(e.target.value)}
+              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400" />
+          </div>
+
+          {rescheduleMsg && (
+            <p className="text-sm text-red-600 px-1">{rescheduleMsg}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button onClick={handleReschedule} disabled={rescheduleLoading || !newScheduledAt}
+              className="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition text-sm flex items-center justify-center gap-2">
+              <Clock size={14} />
+              {rescheduleLoading ? 'Rescheduling...' : 'Confirm Reschedule'}
+            </button>
+            <button onClick={() => { setRescheduleOpen(false); setRescheduleMsg(''); }}
+              className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
               Cancel
             </button>
           </div>

@@ -103,3 +103,13 @@ export const deleteRecording = async (meetingId) => {
     throw err;
   }
 };
+
+// Update an existing Zoom meeting's start time (reschedule)
+export const updateZoomMeeting = async (meetingId, scheduledAt) => {
+  const token = await getZoomAccessToken();
+  await axios.patch(
+    `https://api.zoom.us/v2/meetings/${meetingId}`,
+    { start_time: new Date(scheduledAt).toISOString() },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+};

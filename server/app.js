@@ -14,6 +14,8 @@ app.use(cors());
 app.use(express.json());
 
 
+import meetingRouter from "./modules/meeting/meeting.route.js";
+
 //routes
 app.use('/api/candidate', candidateRouter);
 app.use("/api/interview", interviewRouter);
@@ -21,6 +23,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/teacher", teacherRouter);
 app.use("/api/webhook", webhookRouter);
 app.use("/api/users", userRouter);
+app.use("/api/meeting", meetingRouter);
 
 // Routes
 // router.get("/", (req, res) => {

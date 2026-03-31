@@ -59,3 +59,43 @@ export const SECTION_LABELS = {
   DP: "DP — Secondary Specific Subjects",
   EP: "EP — Secondary Sciences",
 };
+
+/**
+ * parentMonthly values for every class code — mirrored from server/config/classCodes.js.
+ * Only parentMonthly is needed here (for price-range display in the CPC picker).
+ */
+export const CLASS_MONTHLY = {
+  "A-1": 1499,  "A-2": 1999,  "A-3": 2499,  "A-4": 2999,  "A-5": 3499,
+  "A-6": 3499,  "A-7": 3999,  "A-8": 4499,  "A-9": 4999,  "A-10": 5499,
+  "A-11": 5999, "A-12": 5999, "A-13": 6499,
+
+  "B-1": 1999,  "B-2": 2499,  "B-3": 2999,  "B-4": 3499,  "B-5": 3499,
+  "B-6": 3999,  "B-7": 4499,  "B-8": 4999,  "B-9": 5499,  "B-10": 5999,
+  "B-11": 5999, "B-12": 6499, "B-13": 6999,
+
+  "D-1": 1499,  "D-2": 1999,  "D-3": 2499,  "D-4": 2999,  "D-5": 3499,
+  "D-6": 3999,  "D-7": 3999,  "D-8": 4499,  "D-9": 4499,  "D-10": 4999,
+  "D-11": 4999, "D-12": 5499, "D-13": 5999,
+
+  "E-1": 1999,  "E-2": 2499,  "E-3": 2999,  "E-4": 3499,  "E-5": 3999,
+  "E-6": 3999,  "E-7": 4499,  "E-8": 4499,  "E-9": 4999,  "E-10": 4999,
+  "E-11": 5499, "E-12": 5999, "E-13": 6499,
+};
+
+/**
+ * Returns { min, max } parentMonthly for all class codes covered by a single CPC.
+ * e.g. getCpcPriceRange("AP-3") → { min: 2499, max: 3499 }
+ */
+export const getCpcPriceRange = (cpc) => {
+  const prefix = cpc.split("-")[0];                  // "AP"
+  const codes  = CPC_MAP[prefix]?.[cpc] || [];       // ["A-3","A-4","A-5","A-6"]
+  const prices = codes.map(c => CLASS_MONTHLY[c]).filter(Boolean);
+  if (!prices.length) return null;
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+};
+
+/** Formats a price range pair as "₹1,499 – ₹3,499" */
+export const formatPriceRange = ({ min, max }) => {
+  const fmt = (n) => `₹${n.toLocaleString('en-IN')}`;
+  return min === max ? fmt(min) : `${fmt(min)} – ${fmt(max)}`;
+};
