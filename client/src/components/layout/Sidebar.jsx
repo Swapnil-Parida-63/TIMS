@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Video, UserCheck, LogOut, PanelLeftClose, PanelLeft, UserCircle, Shield, Settings, CalendarClock } from 'lucide-react';
+import { LayoutDashboard, Users, Video, UserCheck, LogOut, PanelLeftClose, PanelLeft, UserCircle, Shield, Settings, CalendarClock, BarChart3 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { canViewJudges } from '../../utils/rbac';
 import clsx from 'clsx';
@@ -15,7 +15,8 @@ export const Sidebar = ({ collapsed, setCollapsed }) => {
     { label: 'Interviews', icon: Video, to: '/interviews', show: true },
     { label: 'Panelists', icon: Shield,        to: '/judges',   show: canViewJudges(user?.role) },
     { label: 'Teachers',  icon: UserCheck,      to: '/teachers', show: true },
-    { label: 'Meetings',  icon: CalendarClock,  to: '/meetings', show: ['super_admin', 'admin'].includes(user?.role) },
+    { label: 'Meetings',  icon: CalendarClock,  to: '/meetings', show: ['super_admin', 'admin', 'executer'].includes(user?.role) },
+    { label: 'Reports',   icon: BarChart3,      to: '/reports',  show: ['super_admin', 'admin', 'executer'].includes(user?.role) },
     { label: 'Settings',  icon: Settings,       to: '/settings', show: user?.role === 'super_admin' },
   ].filter(item => item.show);
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
 import { login, googleLogin } from '../services/api';
 import { useAuthStore } from '../store/authStore';
-import { UserCircle } from 'lucide-react';
+import mentrLogo from '../assets/mentr_logo.png';
 
 // Google "G" SVG icon
 const GoogleIcon = () => (
@@ -93,11 +93,12 @@ export const LoginPage = () => {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30 mb-4">
-            <UserCircle size={32} className="text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800">TheMentR</h1>
-          <p className="text-slate-500 text-sm mt-1">Admin & Evaluator Panel</p>
+          <img
+            src={mentrLogo}
+            alt="TheMentR Logo"
+            className="h-20 w-auto object-contain mb-2"
+          />
+          <p className="text-slate-500 text-sm mt-1">Admin &amp; Evaluator Panel</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col gap-4">

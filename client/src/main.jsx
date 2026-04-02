@@ -13,12 +13,15 @@ import { JudgesPage } from './pages/JudgesPage';
 import { TeachersList } from './pages/TeachersList';
 import { MeetingsPage } from './pages/MeetingsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ReportsPage } from './pages/ReportsPage';
+import { SplashScreen } from './components/SplashScreen';
 import './index.css';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 createRoot(document.getElementById('root')).render(
   <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    <SplashScreen />
     <BrowserRouter>
     <Routes>
       {/* Public */}
@@ -34,6 +37,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/judges" element={<JudgesPage />} />
         <Route path="/teachers" element={<TeachersList />} />
         <Route path="/meetings" element={<MeetingsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

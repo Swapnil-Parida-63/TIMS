@@ -29,9 +29,127 @@ body {
 
 /* Dark body — only when html has .dark class */
 html.dark body {
-  background-color: #020617;
+  background-color: #0b0f1a;
+  color: #cbd5e1;
+}
+
+/* ── Dark mode: Page headings ─────────────────────────────── */
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4 {
   color: #e2e8f0;
 }
+
+html.dark p.text-slate-500,
+html.dark span.text-slate-500,
+html.dark div.text-slate-500 {
+  color: #94a3b8;
+}
+
+/* ── Dark mode: Stat cards / white cards ──────────────────── */
+html.dark .bg-white {
+  background-color: #131929 !important;
+}
+
+html.dark .border-slate-100,
+html.dark .border-slate-200 {
+  border-color: #1e293b !important;
+}
+
+html.dark .border-slate-50 {
+  border-color: #1a2235 !important;
+}
+
+/* ── Dark mode: Table headers ─────────────────────────────── */
+html.dark .bg-slate-50 {
+  background-color: #0f1622 !important;
+}
+
+html.dark thead tr,
+html.dark .bg-slate-50 {
+  background-color: #0f1622 !important;
+}
+
+/* ── Dark mode: Table rows hover ─────────────────────────── */
+html.dark tr:hover {
+  background-color: #1a2540 !important;
+}
+
+/* ── Dark mode: Table text ───────────────────────────────── */
+html.dark .text-slate-800 {
+  color: #e2e8f0 !important;
+}
+html.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+html.dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+/* ── Dark mode: Filter pills / secondary buttons ─────────── */
+html.dark button.bg-white,
+html.dark a.bg-white {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #334155 !important;
+}
+
+html.dark button.bg-white:hover,
+html.dark a.bg-white:hover {
+  background-color: #263348 !important;
+}
+
+/* ── Dark mode: Refresh / outline buttons  ────────────────── */
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-50:hover {
+  background-color: #1e293b !important;
+}
+
+/* ── Dark mode: Search / filter inputs ───────────────────── */
+html.dark .bg-slate-50 {
+  background-color: #0f1622 !important;
+}
+
+/* ── Dark mode: Role hierarchy banner ────────────────────── */
+html.dark .bg-purple-50 {
+  background-color: #1e1535 !important;
+}
+
+html.dark .border-purple-100 {
+  border-color: #3b2067 !important;
+}
+
+/* ── Dark mode: CPC pills in interviews ──────────────────── */
+html.dark .bg-purple-50.text-purple-700,
+html.dark .text-purple-700 {
+  color: #c4b5fd !important;
+}
+
+/* ── Dark mode: Action/join pill backgrounds ─────────────── */
+html.dark .bg-blue-50 {
+  background-color: #0f1f35 !important;
+}
+html.dark .bg-emerald-50 {
+  background-color: #0a1f18 !important;
+}
+html.dark .bg-red-50 {
+  background-color: #1f0a0a !important;
+}
+html.dark .bg-amber-50 {
+  background-color: #1f1500 !important;
+}
+
+/* ── Dark mode: Shadow tweaks ─────────────────────────────── */
+html.dark .shadow-sm {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4) !important;
+}
+
+/* ── Dark mode: Sidebar stat value text ──────────────────── */
+html.dark .text-slate-900 {
+  color: #f1f5f9 !important;
+}
+
 
 /* ── Admin card ─────────────────────────────────────── */
 .admin-card {
@@ -61,4 +179,44 @@ html.dark select:focus,
 html.dark textarea:focus {
   border-color: #7c3aed;
   outline: none;
+}
+
+/* ── Splash Screen ───────────────────────────────────── */
+@keyframes splashLogoPop {
+  0%   { opacity: 0; transform: scale(0.3) translateY(40px); }
+  55%  { opacity: 1; transform: scale(1.12) translateY(-8px); }
+  72%  { transform: scale(0.95) translateY(3px); }
+  86%  { transform: scale(1.04) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes splashHintFade {
+  0%   { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes splashGlowPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.08); }
+}
+
+@keyframes splashSlideUp {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-100%); }
+}
+
+.splash-logo-animate {
+  animation: splashLogoPop 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+
+.splash-hint-animate {
+  animation: splashHintFade 0.6s ease-out 1.4s both;
+}
+
+.splash-glow-pulse {
+  animation: splashGlowPulse 3s ease-in-out infinite;
+}
+
+.splash-slide-up {
+  animation: splashSlideUp 0.65s cubic-bezier(0.76, 0, 0.24, 1) forwards;
 }

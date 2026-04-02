@@ -233,9 +233,14 @@ export const MeetingsPage = () => {
                       <h3 className="text-sm font-bold text-slate-800">{m.title}</h3>
                       <StatusBadge status={m.status} />
                     </div>
-                    <p className="text-xs text-slate-500 flex items-center gap-1 mb-2">
+                    <p className="text-xs text-slate-500 flex items-center gap-1 mb-1">
                       <Clock size={12} /> {fmtDate(m.scheduledAt)}
                     </p>
+                    {m.createdBy && (
+                      <p className="text-xs text-slate-500 mb-2">
+                        <strong>Host:</strong> {m.createdBy.name || m.createdBy.email || '—'}
+                      </p>
+                    )}
                     <p className="text-xs text-slate-600">
                       <strong>Participants:</strong> {participants.length ? participants.join(', ') : '—'}
                     </p>

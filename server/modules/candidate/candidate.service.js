@@ -4,8 +4,8 @@ export async function createCandidate(data) {
 
   const {firstName, lastName, email, phone} = data;
 
-   if (!firstName || !lastName || !email || !phone) {
-    throw new Error("Missing required fields: firstName, lastName, email, phone");
+  if (!firstName || !email || !phone) {
+    throw new Error("Missing required fields: firstName, email, phone");
   }
 
   const existingCandidate = await Candidate.findOne({email})
@@ -28,21 +28,16 @@ export async function getCandidateById(id) {
 }
 
 export async function updateCandidate(id, data, user) {
-  if (!['admin', 'super_admin'].includes(user?.role)) {
-    throw new Error('Unauthorized — only admin or super_admin can edit candidates');
+  if (!['admin', 'super_admin', 'executer'].includes(user?.role)) {
+    throw new Error('Unauthorized — only admin, super_admin, or executer can edit candidates');
   }
 
   const candidate = await Candidate.findById(id);
   if (!candidate) throw new Error('Candidate not found');
 
-  // Protected fields — basic identity & family info are locked; only teaching profile is editable
+  // Only system fields are blocked — all candidate data is now editable
   const BLOCKED = [
-    'email', 'status', '_id', '__v',
-    // Identity (set at registration, cannot be changed via edit)
-    'firstName', 'lastName', 'phone', 'dob', 'currentAddress',
-    // Family (set at registration)
-    'fatherName', 'motherName',
-    // Timestamps
+    'status', '_id', '__v',
     'createdAt', 'updatedAt',
   ];
 
@@ -190,5 +185,3 @@ export async function deleteCandidate(id, user, reason, notes = '') {
   await candidate.deleteOne();
   return `Candidate "${candidate.firstName} ${candidate.lastName}" and ${interviews.length} linked interview(s) permanently deleted.`;
 }
-
-

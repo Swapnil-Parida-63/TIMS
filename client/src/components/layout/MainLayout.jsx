@@ -11,7 +11,7 @@ const MainLayout = () => {
   if (!token) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-[#0b0f1a] transition-colors">
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar />

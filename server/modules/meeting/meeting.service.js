@@ -5,7 +5,8 @@ export const createMeeting = async ({ title, meetingType, scheduledAt, participa
   // Create Zoom meeting
   let zoomDetails;
   try {
-    zoomDetails = await createZoomMeeting({ scheduledAt });
+    const meetingTitle = title || (meetingType === "panelist" ? "Panelist Meeting" : "Teacher Meeting");
+    zoomDetails = await createZoomMeeting({ scheduledAt, topic: meetingTitle });
   } catch (err) {
     throw new Error("Failed to create Zoom meeting: " + (err.message || "Unknown error"));
   }

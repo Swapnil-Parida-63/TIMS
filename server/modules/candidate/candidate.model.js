@@ -22,7 +22,7 @@ const candidateSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["applied", "interview scheduled", "standby", "selected", "rejected", "cancelled"],
+    enum: ["applied", "interview scheduled", "standby", "selected", "reserved", "cancelled"],
     default: "applied"
   },
   fatherName: String,
@@ -34,8 +34,8 @@ const candidateSchema = new mongoose.Schema({
   experience: String,
   currentAddress: String,
   declaration: String,
-  rejectionReason: { type: String, default: null }, // set when status = 'rejected'
-  rejectionNotes:  { type: String, default: null }, // optional extra context
+  reserveReason: { type: String, default: null }, // set when status = 'reserved'
+  reserveNotes:  { type: String, default: null }, // optional extra context
 
 
   // ─── Teaching Profile (new fields) ───────────────────────────────────────

@@ -42,7 +42,7 @@ userRouter.patch('/:id/role', protect, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only super_admin can change roles' });
     }
     const { role } = req.body;
-    const allowed = ['admin', 'panelist'];
+    const allowed = ['admin', 'executer', 'panelist'];
     if (!allowed.includes(role)) {
       return res.status(400).json({ success: false, message: `Role must be one of: ${allowed.join(', ')}` });
     }

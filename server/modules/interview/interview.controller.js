@@ -141,6 +141,9 @@ export const addHRRemark = async (req, res) => {
 
 export const assignCPC = async (req, res) => {
   try {
+    if (req.user?.role !== 'super_admin') {
+      return res.status(403).json({ success: false, message: 'Only super_admin can assign or reassign CPC' });
+    }
     const { id } = req.params;
     const { cpcFrom, cpcTo } = req.body;
     const user = req.user;
@@ -152,6 +155,7 @@ export const assignCPC = async (req, res) => {
     res.status(400).json({ success: false, message: err.message });
   }
 };
+
 
 export const getClassOptions = async (req, res) => {
   try {
@@ -217,11 +221,11 @@ export const getRecording = async (req, res) => {
   }
 };
 
-export const rejectCandidate = async (req, res) => {
+export const reserveCandidate = async (req, res) => {
   try {
     const { id } = req.params;
     const { reason, notes } = req.body;
-    const result = await interviewService.rejectCandidate(id, req.user, reason, notes);
+    const result = await interviewService.reserveCandidate(id, req.user, reason, notes);
     res.json({ success: true, message: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -248,4 +252,46 @@ export const rescheduleInterview = async (req, res) => {
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }
-};
+};
+
+export const saveLoaConfig = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await interviewService.saveLoaConfig(id, req.body, req.user);
+    res.json({ success: true, message: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+export const sendLoaAndStandby = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await interviewService.sendLoaAndStandby(id, req.body, req.user);
+    res.json({ success: true, message: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+export const confirmStandby = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await interviewService.confirmStandby(id, req.user);
+    res.json({ success: true, message: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+export const reserveStandbyCandidate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, notes } = req.body;
+    const result = await interviewService.reserveStandbyCandidate(id, req.user, reason, notes);
+    res.json({ success: true, message: result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+

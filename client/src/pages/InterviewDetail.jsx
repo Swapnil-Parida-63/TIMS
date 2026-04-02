@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, Video, CheckCircle2, Lock, EyeOff,
-  Clock, ChevronDown, ChevronRight
+  Clock, ChevronDown, ChevronRight, Plus, X as XIcon, Send, Save, AlertTriangle
 } from 'lucide-react';
 import {
   getInterviews, getFeedbacks, submitFeedback,
-  updateInterviewStatus, assignCPC, getClassOptions, finalizeTeacher, rescheduleInterview
+  updateInterviewStatus, assignCPC, getClassOptions, finalizeTeacher, rescheduleInterview,
+  saveLoaConfig, sendLoaAndStandby, reserveStandby,
 } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { useDataStore } from '../store/dataStore';
@@ -20,10 +21,17 @@ import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
 import { MultiSelect } from '../components/common/MultiSelect';
 import clsx from 'clsx';
+import { STANDBY_RESERVE_REASONS } from '../utils/reasons';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-const BOARD_OPTIONS = ['CBSE/IGCSE', 'ICSE', 'State Board of Odisha', 'CHSE', 'SSVM'];
-const CLASS_OPTIONS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+const BOARD_OPTIONS   = ['CBSE/IGCSE', 'ICSE', 'State Board of Odisha', 'CHSE', 'SSVM'];
+const CLASS_OPTIONS   = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+const SUBJECT_OPTIONS = [
+  'Mathematics', 'Physics', 'Chemistry', 'Biology',
+  'English', 'Odia', 'Hindi',
+  'Computer Science', 'Social Science', 'Environmental Science',
+  'History', 'Geography', 'Economics', 'Accountancy',
+];
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
@@ -231,17 +239,18 @@ const CpcRangePicker = ({ value, onChange }) => {
 // ─── Admin Class Config Panel ────────────────────────────────────────────────
 // Shown inline on the InterviewDetail page for admin when CPC is set.
 
-const AdminClassConfig = ({ interviewId, cpcRange, onSuccess }) => {
+const AdminClassConfig = ({ interviewId, cpcRange, onSuccess, onLoaSent }) => {
   const [classOptions, setClassOptions] = useState([]);
-  const [classCode, setClassCode] = useState('');
-  const [selectedBoards, setSelectedBoards] = useState([]);
-  const [selectedClasses, setSelectedClasses] = useState([]);
-  const [slots, setSlots] = useState('');
+  const [codeEntries,    setCodeEntries]    = useState([{ code: '', slots: '' }]);
+  const [boardEntries,   setBoardEntries]   = useState(['']);
+  const [classEntries,   setClassEntries]   = useState(['']);
+  const [subjectEntries, setSubjectEntries] = useState(['']);
+  const [regNo, setRegNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const { triggerRefresh } = useDataStore();
 
-  // Load class options — now returns union of entire CPC range from server
+  // Load class options from server (union of CPC range)
   useEffect(() => {
     const fetchOptions = async () => {
       try {
@@ -254,70 +263,255 @@ const AdminClassConfig = ({ interviewId, cpcRange, onSuccess }) => {
     fetchOptions();
   }, [interviewId]);
 
-  const handleFinalize = async () => {
-    if (!classCode) { setMsg('Select a class code.'); return; }
-    if (!slots) { setMsg('Enter number of slots.'); return; }
-    if (selectedBoards.length === 0) { setMsg('Select at least one board.'); return; }
-    if (selectedClasses.length === 0) { setMsg('Select at least one class grade.'); return; }
-    setLoading(true);
-    setMsg('');
-    try {
-      await finalizeTeacher(interviewId, {
-        classCode,
-        boards: selectedBoards,
-        classes: selectedClasses,
-        slots: Number(slots),
-      });
-      triggerRefresh(); // sync all pages
-      onSuccess?.();
-    } catch (err) {
-      setMsg(err.response?.data?.message || 'Finalization failed');
-    } finally {
-      setLoading(false);
-    }
+  // ── Class code helpers ──────────────────────────────────────────────────────
+  const addCodeEntry    = () => setCodeEntries(p => [...p, { code: '', slots: '' }]);
+  const removeCodeEntry = (i) => setCodeEntries(p => p.filter((_, idx) => idx !== i));
+  const updateCodeEntry = (i, field, val) =>
+    setCodeEntries(p => p.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
+
+  // ── Board helpers ───────────────────────────────────────────────────────────
+  const addBoard    = () => setBoardEntries(p => [...p, '']);
+  const removeBoard = (i) => setBoardEntries(p => p.filter((_, idx) => idx !== i));
+  const updateBoard = (i, val) => setBoardEntries(p => p.map((v, idx) => idx === i ? val : v));
+
+  // ── Class helpers ───────────────────────────────────────────────────────────
+  const addClass    = () => setClassEntries(p => [...p, '']);
+  const removeClass = (i) => setClassEntries(p => p.filter((_, idx) => idx !== i));
+  const updateClass = (i, val) => setClassEntries(p => p.map((v, idx) => idx === i ? val : v));
+
+  // ── Subject helpers ─────────────────────────────────────────────────────────
+  const addSubject    = () => setSubjectEntries(p => [...p, '']);
+  const removeSubject = (i) => setSubjectEntries(p => p.filter((_, idx) => idx !== i));
+  const updateSubject = (i, val) => setSubjectEntries(p => p.map((v, idx) => idx === i ? val : v));
+
+  const buildPayload = () => {
+    const validCodes    = codeEntries.filter(e => e.code && e.slots);
+    const validBoards   = boardEntries.filter(Boolean);
+    const validClasses  = classEntries.filter(Boolean);
+    const validSubjects = subjectEntries.filter(Boolean);
+    if (validCodes.length === 0)    { setMsg('Add at least one class code with a slot count.'); return null; }
+    if (validBoards.length === 0)   { setMsg('Add at least one board.'); return null; }
+    if (validClasses.length === 0)  { setMsg('Add at least one class grade.'); return null; }
+    if (validSubjects.length === 0) { setMsg('Add at least one subject.'); return null; }
+    if (!regNo.trim())              { setMsg('Please enter the REG No.'); return null; }
+    return {
+      classCode: validCodes[0].code,
+      classCodes: validCodes,
+      boards: validBoards,
+      classes: validClasses,
+      subjects: validSubjects,
+      slots: Number(validCodes[0].slots),
+      regNo: regNo.trim(),
+    };
   };
 
-  return (
-    <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-5">
-      <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
-        <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">Admin</span>
-        <h3 className="text-sm font-bold text-slate-700">Class Configuration</h3>
-        <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 ml-auto">
-          CPC Range: {cpcRange} ✓
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Class Code</label>
-          <select value={classCode} onChange={e => setClassCode(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white outline-none focus:border-purple-400">
-            <option value="">Select class code...</option>
-            {classOptions.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Slots (1–11)</label>
-          <input type="number" min={1} max={11} value={slots} onChange={e => setSlots(e.target.value)}
-            placeholder="e.g. 5"
-            className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Boards</label>
-          <MultiSelect options={BOARD_OPTIONS} selected={selectedBoards} onChange={setSelectedBoards} placeholder="Select boards..." />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Classes (Grades)</label>
-          <MultiSelect options={CLASS_OPTIONS} selected={selectedClasses} onChange={setSelectedClasses} placeholder="Select grades..." />
-        </div>
-      </div>
-      {msg && <p className="mt-3 text-sm px-4 py-3 bg-red-50 border border-red-100 text-red-700 rounded-xl">{msg}</p>}
-      <button onClick={handleFinalize} disabled={loading}
-        className="mt-4 w-full py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 transition text-sm">
-        {loading ? 'Processing...' : '🎉 Confirm Selection & Send Offer'}
+  const handleSaveDraft = async () => {
+    const payload = buildPayload();
+    if (!payload) return;
+    setLoading(true); setMsg('');
+    try {
+      await saveLoaConfig(interviewId, payload);
+      setMsg('✅ Config saved! You can come back and send the LoA later.');
+    } catch (err) {
+      setMsg(err.response?.data?.message || 'Save failed');
+    } finally { setLoading(false); }
+  };
+
+  const handleSendLoA = async () => {
+    const payload = buildPayload();
+    if (!payload) return;
+    if (!window.confirm(`Send the LoA to this candidate now? They will receive the Agreement & Earning Structure by email.`)) return;
+    setLoading(true); setMsg('');
+    try {
+      await sendLoaAndStandby(interviewId, payload);
+      triggerRefresh();
+      onLoaSent?.();
+    } catch (err) {
+      setMsg(err.response?.data?.message || 'Send LoA failed');
+    } finally { setLoading(false); }
+  };
+
+  // ── Reusable row-section header ─────────────────────────────────────────────
+  const SectionHeader = ({ label, onAdd, addLabel }) => (
+    <div className="flex items-center justify-between mb-2">
+      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition"
+      >
+        <Plus size={12} /> {addLabel}
       </button>
     </div>
   );
+
+  return (
+    <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-5">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-5 pb-2 border-b border-slate-100">
+        <span className="text-xs font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">Admin</span>
+        <h3 className="text-sm font-bold text-slate-700">Class Configuration</h3>
+        <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 ml-auto">
+          CPC: {cpcRange} ✓
+        </span>
+      </div>
+
+      {/* ── Class Codes + Slots ── */}
+      <div className="mb-5 space-y-3">
+        <SectionHeader label="Class Codes & Slots" onAdd={addCodeEntry} addLabel="Add Code" />
+        {codeEntries.map((entry, i) => (
+          <div key={i} className="flex items-end gap-2">
+            <div className="flex-1 flex flex-col gap-1">
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                Class Code {codeEntries.length > 1 ? `#${i + 1}` : ''}
+              </label>
+              <select
+                value={entry.code}
+                onChange={e => updateCodeEntry(i, 'code', e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white outline-none focus:border-purple-400 transition"
+              >
+                <option value="">Select class code...</option>
+                {classOptions.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div className="w-32 flex flex-col gap-1">
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Slots (1–11)</label>
+              <input
+                type="number" min={1} max={11} placeholder="e.g. 5"
+                value={entry.slots}
+                onChange={e => updateCodeEntry(i, 'slots', e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 transition"
+              />
+            </div>
+            {codeEntries.length > 1 && (
+              <button type="button" onClick={() => removeCodeEntry(i)}
+                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl border border-slate-200 transition" title="Remove">
+                <XIcon size={14} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Boards ── */}
+      <div className="mb-4 space-y-2">
+        <SectionHeader label="Boards" onAdd={addBoard} addLabel="Add Board" />
+        {boardEntries.map((val, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <select
+              value={val}
+              onChange={e => updateBoard(i, e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white outline-none focus:border-purple-400 transition"
+            >
+              <option value="">Select board...</option>
+              {BOARD_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            {boardEntries.length > 1 && (
+              <button type="button" onClick={() => removeBoard(i)}
+                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl border border-slate-200 transition" title="Remove">
+                <XIcon size={14} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Classes (Grades) ── */}
+      <div className="mb-4 space-y-2">
+        <SectionHeader label="Classes (Grades)" onAdd={addClass} addLabel="Add Class" />
+        {classEntries.map((val, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <select
+              value={val}
+              onChange={e => updateClass(i, e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white outline-none focus:border-purple-400 transition"
+            >
+              <option value="">Select grade...</option>
+              {CLASS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            {classEntries.length > 1 && (
+              <button type="button" onClick={() => removeClass(i)}
+                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl border border-slate-200 transition" title="Remove">
+                <XIcon size={14} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Subjects ── */}
+      <div className="mb-5 space-y-2">
+        <SectionHeader label="Subjects" onAdd={addSubject} addLabel="Add Subject" />
+        {subjectEntries.map((val, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <select
+              value={val}
+              onChange={e => updateSubject(i, e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white outline-none focus:border-purple-400 transition"
+            >
+              <option value="">Select subject...</option>
+              {SUBJECT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            {subjectEntries.length > 1 && (
+              <button type="button" onClick={() => removeSubject(i)}
+                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl border border-slate-200 transition" title="Remove">
+                <XIcon size={14} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── REG No. (single) ── */}
+      <div className="mb-5 flex flex-col gap-1.5">
+        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          REG No. <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={regNo}
+          onChange={e => setRegNo(e.target.value)}
+          placeholder="e.g. 051315"
+          className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 max-w-xs"
+        />
+      </div>
+
+      {/* Summary chips */}
+      {codeEntries.some(e => e.code) && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {codeEntries.filter(e => e.code).map((e, i) => (
+            <span key={i} className="text-[11px] font-semibold bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full border border-purple-200">
+              {e.code} {e.slots ? `— ${e.slots} slot${e.slots !== '1' ? 's' : ''}` : ''}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {msg && (
+        <p className="mb-3 text-sm px-4 py-3 bg-blue-50 border border-blue-100 text-blue-700 rounded-xl">{msg}</p>
+      )}
+      <div className="flex gap-2">
+        <button
+          onClick={handleSaveDraft}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition"
+        >
+          <Save size={14} /> {loading ? 'Saving...' : 'Save Draft'}
+        </button>
+        <button
+          onClick={handleSendLoA}
+          disabled={loading}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 transition text-sm"
+        >
+          <Send size={14} /> {loading ? 'Sending...' : '📨 Send LoA to Candidate'}
+        </button>
+      </div>
+    </div>
+  );
 };
+
+
+
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
@@ -359,6 +553,14 @@ export const InterviewDetail = () => {
   const [newScheduledAt, setNewScheduledAt]       = useState('');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [rescheduleMsg, setRescheduleMsg]         = useState('');
+
+  // Reserve standby (admin can reserve after LoA sent)
+  const [reserveStandbyOpen, setReserveStandbyOpen]     = useState(false);
+  const [reserveStandbyReason, setReserveStandbyReason] = useState('');
+  const [reserveStandbyNotes, setReserveStandbyNotes]   = useState('');
+  const [reserveStandbyLoading, setReserveStandbyLoading] = useState(false);
+  const [reserveStandbyMsg, setReserveStandbyMsg]       = useState('');
+
 
   const fetchAll = async () => {
     setLoading(true);
@@ -445,6 +647,22 @@ export const InterviewDetail = () => {
       setCpcLoading(false);
     }
   };
+
+  const handleReserveStandby = async () => {
+    if (!reserveStandbyReason) { setReserveStandbyMsg('Please select a reason.'); return; }
+    setReserveStandbyLoading(true);
+    setReserveStandbyMsg('');
+    try {
+      await reserveStandby(id, reserveStandbyReason, reserveStandbyNotes);
+      setReserveStandbyOpen(false);
+      navigate('/reports?tab=reserved');
+    } catch (err) {
+      setReserveStandbyMsg(err.response?.data?.message || 'Reserve failed.');
+    } finally {
+      setReserveStandbyLoading(false);
+    }
+  };
+
 
   if (loading) return <div className="p-8 text-slate-500 text-sm animate-pulse">Loading...</div>;
   if (!interview) return <div className="p-8 text-red-500 font-medium">Interview not found.</div>;
@@ -569,24 +787,53 @@ export const InterviewDetail = () => {
 
         {/* RIGHT column */}
         <div className="lg:col-span-2 flex flex-col gap-4">
-          {/* Admin: class config panel — shown when CPC is set and interview is complete */}
-          {isAdmin && interview.status === 'completed' && !isFinalized && (
+          {/* Admin: class config panel — shown when completed or loa_sent and not fully finalized */}
+          {isAdmin && ['completed', 'loa_sent'].includes(interview.status) && !isFinalized && (
             cpcAssigned ? (
               <AdminClassConfig
                 interviewId={id}
                 cpcRange={cpcAssigned}
-                onSuccess={() => navigate('/teachers')}
+                onLoaSent={() => triggerRefresh()}
               />
             ) : (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-center gap-3">
                 <Clock size={20} className="text-amber-500 shrink-0" />
                 <div>
                   <p className="font-semibold text-amber-800 text-sm">Awaiting CPC Assignment</p>
-                  <p className="text-xs text-amber-600 mt-0.5">Super Admin must assign CPC for this candidate before you can finalize the class configuration.</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Super Admin must assign CPC for this candidate before you can send the LoA.</p>
                 </div>
               </div>
             )
           )}
+
+          {/* LoA Sent banner — visible to admin after LoA is sent, awaiting super admin confirmation */}
+          {interview.status === 'loa_sent' && (
+            <div className="bg-cyan-50 border border-cyan-200 rounded-2xl p-5">
+              <div className="flex items-start gap-3">
+                <Send size={20} className="text-cyan-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold text-cyan-800 text-sm">LoA Sent — Awaiting Super Admin Confirmation</p>
+                  <p className="text-xs text-cyan-600 mt-0.5">
+                    The Letter of Agreement has been emailed to the candidate. The Super Admin will confirm or reserve this candidate.
+                  </p>
+                  {interview.loaConfig?.loaSentAt && (
+                    <p className="text-xs text-cyan-500 mt-1">
+                      Sent: {new Date(interview.loaConfig.loaSentAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {(isAdmin || isSuperAdmin) && (
+                <button
+                  onClick={() => { setReserveStandbyOpen(true); setReserveStandbyReason(''); setReserveStandbyNotes(''); setReserveStandbyMsg(''); }}
+                  className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-3 py-2 rounded-lg hover:bg-orange-100 transition"
+                >
+                  <AlertTriangle size={13} /> Move to Reserved
+                </button>
+              )}
+            </div>
+          )}
+
 
           {/* Expert/Micro observer/Admin: submit feedback — visible for scheduled AND completed */}
           {canSubmitFeedback(role) && !myFeedback && !submitted && ['scheduled', 'completed'].includes(interview.status) && (
@@ -751,6 +998,61 @@ export const InterviewDetail = () => {
           </div>
         </div>
       </Modal>
+
+      {/* ── Reserve Standby Modal ── */}
+      <Modal isOpen={reserveStandbyOpen} onClose={() => setReserveStandbyOpen(false)} title="Move to Reserved">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-xl p-3 text-sm text-orange-700">
+            <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+            <span>
+              Select a reason for reserving <strong>{candidateName}</strong> after the LoA was sent.
+              This candidate will appear in the Reserved report with the chosen reason.
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Reason <span className="text-red-500">*</span></label>
+            <select
+              value={reserveStandbyReason}
+              onChange={e => setReserveStandbyReason(e.target.value)}
+              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white"
+            >
+              <option value="">Select a reason...</option>
+              {STANDBY_RESERVE_REASONS.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Additional Notes <span className="text-slate-400">(optional)</span></label>
+            <textarea
+              value={reserveStandbyNotes}
+              onChange={e => setReserveStandbyNotes(e.target.value)}
+              placeholder="Any additional context..."
+              rows={3}
+              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-orange-400 resize-none"
+            />
+          </div>
+
+          {reserveStandbyMsg && (
+            <p className="text-sm text-red-600 px-1">{reserveStandbyMsg}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button onClick={handleReserveStandby} disabled={reserveStandbyLoading || !reserveStandbyReason}
+              className="flex-1 bg-orange-600 text-white font-bold py-2.5 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition text-sm flex items-center justify-center gap-2">
+              <AlertTriangle size={14} />
+              {reserveStandbyLoading ? 'Moving to Reserved...' : 'Confirm — Move to Reserved'}
+            </button>
+            <button onClick={() => setReserveStandbyOpen(false)}
+              className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
+

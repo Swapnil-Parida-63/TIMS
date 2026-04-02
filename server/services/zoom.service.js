@@ -27,7 +27,7 @@ export const createZoomMeeting = async (data) => {
   const response = await axios.post(
     "https://api.zoom.us/v2/users/me/meetings",
     {
-      topic: "Interview",
+      topic: data.topic || "Interview",
       type: 2,
       start_time: data.scheduledAt,
       settings: {

@@ -21,6 +21,7 @@ const RoleBadge = ({ role }) => (
 // Roles that can be managed/assigned via the UI (super_admin is fixed — can't be changed)
 const MANAGEABLE_ROLES = [
   { value: 'admin',    label: 'Admin' },
+  { value: 'executer', label: 'Executer' },
   { value: 'panelist', label: 'Panelist' },
 ];
 
@@ -139,7 +140,7 @@ export const JudgesPage = () => {
       <div className="mb-5 flex flex-wrap gap-2 items-center bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
         <Shield size={15} className="text-purple-600 shrink-0" />
         <span className="text-xs font-semibold text-purple-700">Role Hierarchy:</span>
-        {[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PANELIST].map((r, i, arr) => (
+        {[ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EXECUTER, ROLES.PANELIST].map((r, i, arr) => (
           <React.Fragment key={r}>
             <RoleBadge role={r} />
             {i < arr.length - 1 && <span className="text-purple-400 text-xs">›</span>}
@@ -248,6 +249,7 @@ export const JudgesPage = () => {
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
               className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 bg-white">
               <option value="panelist">Panelist — can be assigned as Micro Observer or Subject Expert per interview</option>
+              <option value="executer">Executer — can edit and verify all candidate information</option>
               <option value="admin">Admin — full read access, can schedule interviews</option>
             </select>
           </div>

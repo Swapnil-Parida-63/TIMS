@@ -2,7 +2,8 @@ import express from 'express';
 import {
   interview, getInterviews, joinInterview, giveFeedback, getFeedbacks,
   addHRRemark, assignCPC, getClassOptions, selectClassCode, addStudent,
-  getRecording, rejectCandidate, updateInterviewStatus, rescheduleInterview, testZoom
+  getRecording, reserveCandidate, updateInterviewStatus, rescheduleInterview, testZoom,
+  saveLoaConfig, sendLoaAndStandby, confirmStandby, reserveStandbyCandidate,
 } from './interview.controller.js';
 import {protect, softProtect} from '../../middleware/auth.js';
 
@@ -20,8 +21,14 @@ interviewRouter.get("/:id/class-options", protect, getClassOptions);
 interviewRouter.patch("/:id/class-code", protect, selectClassCode);
 interviewRouter.patch("/:id/add-student", protect, addStudent);
 interviewRouter.get("/:id/recording", protect, getRecording);
-interviewRouter.post("/:id/reject", protect, rejectCandidate);
+interviewRouter.post("/:id/reserve", protect, reserveCandidate);
 interviewRouter.patch("/:id/status", protect, updateInterviewStatus);
 interviewRouter.patch("/:id/reschedule", protect, rescheduleInterview);
+
+// LoA / Standby workflow
+interviewRouter.patch("/:id/save-loa-config",   protect, saveLoaConfig);
+interviewRouter.post("/:id/send-loa",           protect, sendLoaAndStandby);
+interviewRouter.post("/:id/confirm-standby",    protect, confirmStandby);
+interviewRouter.post("/:id/reserve-standby",    protect, reserveStandbyCandidate);
 
 export default interviewRouter;

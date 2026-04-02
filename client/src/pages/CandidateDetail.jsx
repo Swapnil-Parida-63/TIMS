@@ -2,17 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, AlertTriangle, Plus, Trash2, Pencil, X, Save } from 'lucide-react';
 import {
-  getCandidateById, createInterview, rejectInterview, getUsers, getInterviews,
+  getCandidateById, createInterview, reserveInterview, reserveCandidateDirect, getUsers, getInterviews,
   assignCPC, getClassOptions, finalizeTeacher, updateInterviewStatus,
   deleteCandidate, updateCandidate,
 } from '../services/api';
-import { REJECTION_REASONS, DELETION_REASONS } from '../utils/reasons';
+import { RESERVE_REASONS, DELETION_REASONS } from '../utils/reasons';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
 import { MultiSelect } from '../components/common/MultiSelect';
 import { useAuthStore } from '../store/authStore';
 import { useDataStore } from '../store/dataStore';
-import { canSchedule } from '../utils/rbac';
+import { canSchedule, canEditCandidate } from '../utils/rbac';
 import { CPC_MAP } from '../utils/cpcMap';
 import clsx from 'clsx';
 
@@ -65,11 +65,23 @@ const EditMultiSelect = ({ label, options, value, onChange }) => (
 
 // ─── Default edit form state builder ─────────────────────────────────────────
 const buildEditForm = (c) => ({
+  // Basic Information
+  firstName:               c.firstName || '',
+  lastName:                c.lastName || '',
+  email:                   c.email || '',
+  phone:                   c.phone || '',
+  dob:                     c.dob || '',
+  currentAddress:          c.currentAddress || '',
+  // Family Details
+  fatherName:              c.fatherName || '',
+  motherName:              c.motherName || '',
   // Academic & Professional
   highestQualification:    c.highestQualification || '',
   technicalQualification:  c.technicalQualification || '',
   specialisation:          c.specialisation || '',
   experience:              c.experience || '',
+  institutionalExperience: c.institutionalExperience || '',
+  tuitionExperience:       c.tuitionExperience || '',
   // Teaching profile
   boardsToTeach:           c.boardsToTeach || [],
   boardsTaught:            c.boardsTaught || [],
@@ -79,8 +91,6 @@ const buildEditForm = (c) => ({
   subjectTaught:           c.subjectTaught || '',
   mediumOfInstruction:     c.mediumOfInstruction || [],
   mediumComfortable:       c.mediumComfortable || '',
-  institutionalExperience: c.institutionalExperience || '',
-  tuitionExperience:       c.tuitionExperience || '',
   serviceLocation:         c.serviceLocation || [],
 });
 
@@ -97,15 +107,15 @@ export const CandidateDetail = () => {
 
   // Modals
   const [scheduleOpen,        setScheduleOpen]        = useState(false);
-  const [confirmRejectOpen,   setConfirmRejectOpen]   = useState(false);
+  const [confirmReserveOpen,  setConfirmReserveOpen]  = useState(false);
   const [cancelInterviewOpen, setCancelInterviewOpen] = useState(false);
   const [deleteCandidateOpen, setDeleteCandidateOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMsg,     setActionMsg]     = useState('');
 
-  // Rejection reason
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectNotes,  setRejectNotes]  = useState('');
+  // Reserve reason
+  const [reserveReason, setReserveReason] = useState('');
+  const [reserveNotes,  setReserveNotes]  = useState('');
 
   // Deletion reason
   const [deleteReason, setDeleteReason] = useState('');
@@ -134,7 +144,7 @@ export const CandidateDetail = () => {
 
   const isAdmin       = user?.role === 'admin';
   const isSuperAdmin  = user?.role === 'super_admin';
-  const canEdit       = isAdmin || isSuperAdmin;
+  const canEdit       = canEditCandidate(user?.role);
 
   // ─── Data Fetch ────────────────────────────────────────────────────────────
   const fetchData = async () => {
@@ -253,18 +263,21 @@ export const CandidateDetail = () => {
     }
   };
 
-  const handleReject = async () => {
-    if (!rejectReason) { setActionMsg('Please select a rejection reason.'); return; }
-    if (!linkedInterview?._id) { setActionMsg('No interview found.'); setConfirmRejectOpen(false); return; }
+  const handleReserve = async () => {
+    if (!reserveReason) { setActionMsg('Please select a reserve reason.'); return; }
     setActionLoading(true);
     try {
-      await rejectInterview(linkedInterview._id, rejectReason, rejectNotes);
-      setConfirmRejectOpen(false);
+      if (linkedInterview?._id) {
+        await reserveInterview(linkedInterview._id, reserveReason, reserveNotes);
+      } else {
+        await reserveCandidateDirect(candidate._id, reserveReason, reserveNotes);
+      }
+      setConfirmReserveOpen(false);
       triggerRefresh();
-      navigate('/candidates');
+      navigate('/reports?tab=reserved');
     } catch (err) {
-      setActionMsg(err.response?.data?.message || 'Rejection failed.');
-      setConfirmRejectOpen(false);
+      setActionMsg(err.response?.data?.message || 'Reserve failed.');
+      setConfirmReserveOpen(false);
     } finally { setActionLoading(false); }
   };
 
@@ -314,8 +327,8 @@ export const CandidateDetail = () => {
   if (!candidate) return <div className="p-8 text-red-500 font-medium">Candidate not found.</div>;
 
   const cpcAssigned    = linkedInterview?.pricing?.cpc;
-  const isFinalized    = linkedInterview?.status === 'selected';
-  const isRejectedOrCancelled = ['rejected', 'cancelled'].includes(linkedInterview?.status) || candidate.status === 'rejected';
+  const isFinalized    = ['selected', 'loa_sent'].includes(linkedInterview?.status);
+  const isReservedOrCancelled = ['reserved', 'cancelled'].includes(linkedInterview?.status) || candidate.status === 'reserved';
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -348,10 +361,10 @@ export const CandidateDetail = () => {
               <Pencil size={14} /> Edit
             </button>
           )}
-          {candidate.status === 'applied' && canSchedule(user?.role) && (
+          {['applied', 'reserved'].includes(candidate.status) && canSchedule(user?.role) && (
             <button onClick={openScheduleModal}
               className="px-4 py-2 text-sm font-semibold bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition shadow-sm">
-              Schedule Interview
+              {candidate.status === 'reserved' ? 'Re-schedule Interview' : 'Schedule Interview'}
             </button>
           )}
           {linkedInterview?.status === 'scheduled' && ['admin', 'super_admin'].includes(user?.role) && (
@@ -360,10 +373,10 @@ export const CandidateDetail = () => {
               Cancel Interview
             </button>
           )}
-          {!isFinalized && !isRejectedOrCancelled && ['admin', 'super_admin'].includes(user?.role) && (
-            <button onClick={() => setConfirmRejectOpen(true)}
-              className="px-4 py-2 text-sm font-semibold bg-white text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition">
-              Reject
+          {!isFinalized && !isReservedOrCancelled && ['admin', 'super_admin'].includes(user?.role) && (
+            <button onClick={() => setConfirmReserveOpen(true)}
+              className="px-4 py-2 text-sm font-semibold bg-white text-orange-600 border border-orange-200 rounded-xl hover:bg-orange-50 transition">
+              Reserve
             </button>
           )}
           {['admin', 'super_admin'].includes(user?.role) && (
@@ -382,10 +395,33 @@ export const CandidateDetail = () => {
         <div className="flex flex-col gap-4">
           <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-2 text-amber-700 text-sm font-medium">
             <Pencil size={15} />
-            Editing teaching profile — Basic info and family details are locked and cannot be changed.
+            Editing all candidate details — make sure all data is accurate for evaluation.
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-5">
+            {/* Basic Information */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-3 pb-2 border-b border-slate-100">Basic Information</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <EditInput label="First Name"       value={editForm.firstName}      onChange={setField('firstName')} />
+                <EditInput label="Last Name"        value={editForm.lastName}       onChange={setField('lastName')} />
+                <EditInput label="Email"            value={editForm.email}          onChange={setField('email')} type="email" />
+                <EditInput label="Phone"            value={editForm.phone}          onChange={setField('phone')} />
+                <EditInput label="Date of Birth"    value={editForm.dob}            onChange={setField('dob')} placeholder="e.g. 15-06-1998" />
+                <EditInput label="Current Address"  value={editForm.currentAddress} onChange={setField('currentAddress')} />
+              </div>
+            </div>
+
+            {/* Family Details */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-3 pb-2 border-b border-slate-100">Family Details</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <EditInput label="Father's Name" value={editForm.fatherName} onChange={setField('fatherName')} />
+                <EditInput label="Mother's Name" value={editForm.motherName} onChange={setField('motherName')} />
+              </div>
+            </div>
+
+            {/* Academic & Professional */}
             <div>
               <h3 className="text-sm font-bold text-slate-700 mb-3 pb-2 border-b border-slate-100">Academic & Professional</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -622,38 +658,38 @@ export const CandidateDetail = () => {
         </div>
       </Modal>
 
-      {/* Reject Confirmation */}
-      <Modal isOpen={confirmRejectOpen} onClose={() => { setConfirmRejectOpen(false); setRejectReason(''); setRejectNotes(''); }} title="Reject Candidate">
+      {/* Reserve Confirmation */}
+      <Modal isOpen={confirmReserveOpen} onClose={() => { setConfirmReserveOpen(false); setReserveReason(''); setReserveNotes(''); }} title="Reserve Candidate">
         <div className="flex flex-col gap-4">
-          <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-xl p-3">
-            <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700">
-              Rejecting <strong>{candidate.firstName} {candidate.lastName}</strong>. Their profile will remain accessible under the Rejected filter.
+          <div className="flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-xl p-3">
+            <AlertTriangle size={16} className="text-orange-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-orange-700">
+              Reserving <strong>{candidate.firstName} {candidate.lastName}</strong>. Their profile will be moved to the Reserved list with the selected reason.
             </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Reason for Rejection <span className="text-red-500">*</span></label>
-            <select value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-red-400 bg-white text-slate-700">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Reserve Category <span className="text-red-500">*</span></label>
+            <select value={reserveReason} onChange={e => setReserveReason(e.target.value)}
+              className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-orange-400 bg-white text-slate-700">
               <option value="">Select a reason...</option>
-              {REJECTION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+              {RESERVE_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Additional Notes <span className="text-slate-400">(optional)</span></label>
-            <textarea value={rejectNotes} onChange={e => setRejectNotes(e.target.value)}
+            <textarea value={reserveNotes} onChange={e => setReserveNotes(e.target.value)}
               rows={2} placeholder="Any specific observations..."
-              className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-red-400 resize-none" />
+              className="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:border-orange-400 resize-none" />
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleReject} disabled={actionLoading || !rejectReason}
-              className="flex-1 bg-red-600 text-white font-bold py-2.5 rounded-xl hover:bg-red-700 disabled:opacity-50 transition text-sm">
-              {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+            <button onClick={handleReserve} disabled={actionLoading || !reserveReason}
+              className="flex-1 bg-orange-600 text-white font-bold py-2.5 rounded-xl hover:bg-orange-700 disabled:opacity-50 transition text-sm">
+              {actionLoading ? 'Reserving...' : 'Confirm Reserve'}
             </button>
-            <button onClick={() => { setConfirmRejectOpen(false); setRejectReason(''); setRejectNotes(''); }}
+            <button onClick={() => { setConfirmReserveOpen(false); setReserveReason(''); setReserveNotes(''); }}
               className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
               Cancel
             </button>

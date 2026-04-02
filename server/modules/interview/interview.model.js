@@ -53,12 +53,25 @@ const interviewSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["scheduled", "completed", "cancelled", "selected", "rejected"],
+      enum: ["scheduled", "completed", "cancelled", "selected", "reserved", "loa_sent"],
       default: "scheduled",
     },
 
     rejectionReason: { type: String, default: null },
     rejectionNotes:  { type: String, default: null },
+
+    // Class config saved by admin before/after LoA is sent
+    loaConfig: {
+      classCode:  { type: String, default: null },
+      classCodes: { type: mongoose.Schema.Types.Mixed, default: null },
+      boards:     { type: [String], default: [] },
+      classes:    { type: [String], default: [] },
+      subjects:   { type: [String], default: [] },
+      slots:      { type: Number,   default: null },
+      regNo:      { type: String,   default: null },
+      savedAt:    { type: Date,     default: null },
+      loaSentAt:  { type: Date,     default: null },
+    },
 
 feedbacks: [
   {

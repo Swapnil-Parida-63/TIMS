@@ -7,6 +7,7 @@ import { CLASS_CODES } from "../../config/classCodes.js";
 import { CPC_MAP } from "../../config/cpcMap.js";
 import mongoose from "mongoose";
 import { sendInterviewEmail } from "../../services/email.service.js";
+import { finalizeTeacher as _finalizeTeacher } from "../teacher/teacher.service.js";
 
 export const getInterviews = async () => {
   return await Interview.find({}).populate('candidate').sort({ createdAt: -1 });
@@ -28,7 +29,8 @@ export const createInterview = async (data) => {
   // Generate Zoom Meeting
   let zoomDetails;
   try {
-    zoomDetails = await createZoomMeeting({ scheduledAt });
+    const candidateName = `${candidateExists.firstName || ''} ${candidateExists.lastName || ''}`.trim();
+    zoomDetails = await createZoomMeeting({ scheduledAt, topic: `Interview - ${candidateName}` });
   } catch (err) {
     console.error("Zoom Creation Failed:", err.response?.data || err.message);
     throw new Error("Failed to create Zoom Meeting. Please check Zoom credentials.");
@@ -77,6 +79,15 @@ export const createInterview = async (data) => {
     zoomStartUrl: zoomDetails.startUrl,
     zoomRecordingStatus: "pending"
   });
+
+  // If candidate was reserved, re-engage them as 'interview scheduled'
+  if (candidateExists.status === 'reserved') {
+    await Candidate.findByIdAndUpdate(candidate, {
+      status: 'interview scheduled',
+      reserveReason: null,
+      reserveNotes: null,
+    });
+  }
 
   // Intercept and send Email to Candidate and Judges
   // This executes independently so creating the interview doesn't fail if SMTP breaks
@@ -338,13 +349,13 @@ export const getRecordingUrl = async (id, user) => {
   return { downloadUrl: interview.zoomRecordingUrl };
 };
 
-export const rejectCandidate = async (id, user, reason, notes = '') => {
+export const reserveCandidate = async (id, user, reason, notes = '') => {
   if (!["admin", "super_admin"].includes(user.role)) {
     throw new Error("Unauthorized");
   }
 
   if (!reason || !reason.trim()) {
-    throw new Error('A rejection reason must be provided');
+    throw new Error('A reserve reason must be provided');
   }
 
   const interview = await Interview.findById(id);
@@ -353,14 +364,14 @@ export const rejectCandidate = async (id, user, reason, notes = '') => {
   // 1. Store reason on interview
   interview.rejectionReason = reason;
   interview.rejectionNotes  = notes;
-  interview.status = 'rejected';  // use 'rejected' so it's distinguishable from 'cancelled'
+  interview.status = 'reserved';
   await interview.save();
 
-  // 2. Mark candidate as rejected + store reason
+  // 2. Mark candidate as reserved + store reason
   await Candidate.findByIdAndUpdate(interview.candidate, {
-    status: 'rejected',
-    rejectionReason: reason,
-    rejectionNotes:  notes,
+    status: 'reserved',
+    reserveReason: reason,
+    reserveNotes:  notes,
   });
 
   // 3. Clean up Zoom recording
@@ -368,14 +379,14 @@ export const rejectCandidate = async (id, user, reason, notes = '') => {
     try {
       await deleteRecording(interview.zoomMeetingId);
     } catch (err) {
-      console.error('Failed to delete recording on reject:', err.message);
+      console.error('Failed to delete recording on reserve:', err.message);
     }
     interview.zoomRecordingStatus = 'deleted';
     interview.zoomRecordingUrl = null;
     await interview.save();
   }
 
-  return 'Candidate rejected';
+  return 'Candidate reserved';
 };
 
 export const updateInterviewStatus = async (id, status, user) => {
@@ -395,6 +406,16 @@ export const updateInterviewStatus = async (id, status, user) => {
   );
 
   if (!interview) throw new Error("Interview not found");
+
+  // When interview is completed → move candidate to "standby" (awaiting evaluation)
+  if (status === "completed" && interview.candidate) {
+    await Candidate.findByIdAndUpdate(interview.candidate, { status: "standby" });
+  }
+
+  // When interview is cancelled → revert candidate to "applied"
+  if (status === "cancelled" && interview.candidate) {
+    await Candidate.findByIdAndUpdate(interview.candidate, { status: "applied" });
+  }
   
   return interview;
 };
@@ -429,4 +450,123 @@ export const rescheduleInterview = async (id, scheduledAt, user) => {
   }
 
   return interview;
-};
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LoA / Standby Workflow
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Admin saves class config as a draft (no LoA sent, no teacher created).
+ * Admin can re-save multiple times before sending LoA.
+ */
+export const saveLoaConfig = async (id, configData, user) => {
+  if (!["admin", "super_admin"].includes(user.role)) throw new Error("Unauthorized");
+
+  const { classCode, classCodes, boards, classes, subjects, slots, regNo } = configData;
+  if (!classCode) throw new Error("classCode is required");
+
+  const interview = await Interview.findById(id);
+  if (!interview) throw new Error("Interview not found");
+  if (!['completed', 'loa_sent'].includes(interview.status)) {
+    throw new Error("Interview must be completed before saving class config");
+  }
+
+  interview.loaConfig = { classCode, classCodes, boards, classes, subjects, slots, regNo, savedAt: new Date() };
+  await interview.save();
+  return "Class config saved";
+};
+
+/**
+ * Admin sends the LoA PDF email immediately, moves interview → loa_sent,
+ * candidate → standby. Teacher record is NOT created yet.
+ */
+export const sendLoaAndStandby = async (id, configData, user) => {
+  if (!["admin", "super_admin"].includes(user.role)) throw new Error("Unauthorized");
+
+  const { classCode, classCodes, boards, classes, subjects, slots, regNo } = configData;
+  if (!classCode) throw new Error("classCode is required");
+
+  const interview = await Interview.findById(id).populate('candidate');
+  if (!interview) throw new Error("Interview not found");
+  if (!['completed', 'loa_sent'].includes(interview.status)) {
+    throw new Error("Interview must be completed to send LoA");
+  }
+
+  // Save config + mark times
+  interview.loaConfig = {
+    classCode, classCodes, boards, classes, subjects, slots, regNo,
+    savedAt: interview.loaConfig?.savedAt || new Date(),
+    loaSentAt: new Date(),
+  };
+  interview.status = 'loa_sent';
+  await interview.save();
+
+  // Candidate → standby
+  await Candidate.findByIdAndUpdate(interview.candidate._id || interview.candidate, { status: 'standby' });
+
+  // Generate LoA PDF + send email using teacher service (pass loaOnly: true to skip Teacher creation)
+  // We call the full finalizeTeacher but it will bail out from creating Teacher
+  // because we pass loaOnly flag — teacher.service handles this
+  try {
+    await _finalizeTeacher(id, { classCode, classCodes, boards, classes, subjects, slots, regNo, loaOnly: true });
+  } catch (err) {
+    console.error('LoA email failed (non-critical):', err.message);
+  }
+
+  return 'LoA sent — candidate is now in standby';
+};
+
+/**
+ * Super admin confirms a standby candidate → creates the Teacher record.
+ */
+export const confirmStandby = async (id, user) => {
+  if (user.role !== 'super_admin') throw new Error("Only super admin can confirm standby candidates");
+
+  const interview = await Interview.findById(id);
+  if (!interview) throw new Error("Interview not found");
+  if (interview.status !== 'loa_sent') throw new Error("Interview is not in loa_sent status");
+
+  const cfg = interview.loaConfig;
+  if (!cfg?.classCode) throw new Error("No class config saved — cannot confirm");
+
+  // Create teacher — status will be set to 'selected' inside finalizeTeacher
+  await _finalizeTeacher(id, {
+    classCode:  cfg.classCode,
+    classCodes: cfg.classCodes,
+    boards:     cfg.boards,
+    classes:    cfg.classes,
+    subjects:   cfg.subjects,
+    slots:      cfg.slots,
+    regNo:      cfg.regNo,
+    skipLoaEmail: true,  // LoA was already emailed when LoA was sent
+  });
+
+  return 'Candidate confirmed as teacher';
+};
+
+/**
+ * Super admin reserves a standby (post-LoA) candidate with a chosen reason.
+ */
+export const reserveStandbyCandidate = async (id, user, reason, notes = '') => {
+  if (user.role !== 'super_admin') throw new Error("Only super admin can reserve standby candidates");
+  if (!reason?.trim()) throw new Error('A reserve reason must be provided');
+
+  const interview = await Interview.findById(id);
+  if (!interview) throw new Error("Interview not found");
+  if (interview.status !== 'loa_sent') throw new Error("This candidate is not in standby");
+
+  interview.status = 'reserved';
+  interview.rejectionReason = reason;
+  interview.rejectionNotes = notes;
+  await interview.save();
+
+  await Candidate.findByIdAndUpdate(interview.candidate, {
+    status: 'reserved',
+    reserveReason: reason,
+    reserveNotes:  notes,
+  });
+
+  return 'Standby candidate reserved';
+};
+

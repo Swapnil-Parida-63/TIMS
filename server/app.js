@@ -15,6 +15,7 @@ app.use(express.json());
 
 
 import meetingRouter from "./modules/meeting/meeting.route.js";
+import reportRouter  from "./modules/reports/reports.route.js";
 
 //routes
 app.use('/api/candidate', candidateRouter);
@@ -24,6 +25,7 @@ app.use("/api/teacher", teacherRouter);
 app.use("/api/webhook", webhookRouter);
 app.use("/api/users", userRouter);
 app.use("/api/meeting", meetingRouter);
+app.use("/api/reports", reportRouter);
 
 // Routes
 // router.get("/", (req, res) => {

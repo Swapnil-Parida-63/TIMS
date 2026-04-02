@@ -376,7 +376,7 @@ letter-spacing:-.5pt'>COMPENDIUM</span></u></h1>
   border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
   padding:0in 5.4pt 0in 5.4pt'>
           <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>Teacher
-              </span></b><b><span style='font-size:9.0pt;font-family:"Bahnschrift",sans-serif'>({{boards}})</span></b></p>
+              </span></b></p>
         </td>
       </tr>
       <tr>
@@ -412,7 +412,7 @@ letter-spacing:-.5pt'>COMPENDIUM</span></u></h1>
   border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
   padding:0in 5.4pt 0in 5.4pt'>
           <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>{{selectedClasses}} —
-                {{subjects}}</span></b></p>
+                {{subjectsStr}}</span></b></p>
         </td>
       </tr>
       <tr>
@@ -443,12 +443,12 @@ letter-spacing:-.5pt'>COMPENDIUM</span></u></h1>
         <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
   padding:0in 5.4pt 0in 5.4pt'>
           <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>Class
-                Categories for P &amp; S -</span></b></p>
+                Categories for {{classCategoryLabel}} -</span></b></p>
         </td>
         <td width=346 style='width:259.45pt;border-top:none;border-left:none;
   border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
   padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>{{classCodeMapping}}</span></b></p>
+          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>{{classCategoryDisplay}}</span></b></p>
         </td>
       </tr>
       <tr>
@@ -461,13 +461,13 @@ letter-spacing:-.5pt'>COMPENDIUM</span></u></h1>
         <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
   background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>
           <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif;
-  color:black'>Fees Codes for P &amp; S -</span></b></p>
+  color:black'>Fees Codes for {{classCategoryLabel}} -</span></b></p>
         </td>
         <td width=346 style='width:259.45pt;border-top:none;border-left:none;
   border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
   background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>
           <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif;
-  color:black'>{{classCode}}</span></b></p>
+  color:black'>{{feeCodesDisplay}}</span></b></p>
         </td>
       </tr>
       <tr>
@@ -488,103 +488,13 @@ letter-spacing:-.5pt'>COMPENDIUM</span></u></h1>
                 Class = More Pay, No Class = No Pay</span></b></p>
         </td>
       </tr>
-      <tr>
-        <td width=64 style='width:47.95pt;border-top:none;border-left:solid #7BA0CD 1.0pt;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:none;background:#D3DFEE;
-  padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing align=center style='text-align:center'><span
-              style='font-family:"Bahnschrift",sans-serif;color:black'>9</span></p>
-        </td>
-        <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
-  background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif;
-  color:black'>Hourly Fees for P -</span></b></p>
-        </td>
-        <td width=346 style='width:259.45pt;border-top:none;border-left:none;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
-  background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif;
-  color:black'>Rs. {{hourlyRate}}</span></b></p>
-        </td>
-      </tr>
+      {{feeRowsHtml}}
+      {{mentRIdRowHtml}}
       <tr>
         <td width=64 style='width:47.95pt;border-top:none;border-left:solid #7BA0CD 1.0pt;
   border-bottom:solid #7BA0CD 1.0pt;border-right:none;padding:0in 5.4pt 0in 5.4pt'>
           <p class=MsoNoSpacing align=center style='text-align:center'><span
-              style='font-family:"Bahnschrift",sans-serif'>10</span></p>
-        </td>
-        <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
-  padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>Half-Hourly
-                Fees for P -</span></b></p>
-        </td>
-        <td width=346 style='width:259.45pt;border-top:none;border-left:none;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
-  padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>Rs. {{halfRate}}
-              </span></b></p>
-        </td>
-      </tr>
-      <tr>
-        <td width=64 style='width:47.95pt;border-top:none;border-left:solid #7BA0CD 1.0pt;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:none;background:#D3DFEE;
-  padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing align=center style='text-align:center'><span
-              style='font-family:"Bahnschrift",sans-serif;color:black'>11</span></p>
-        </td>
-        <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
-  background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif;
-  color:black'>Hourly Fees for S -</span></b></p>
-        </td>
-        <td width=346 style='width:259.45pt;border-top:none;border-left:none;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
-  background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif;
-  color:black'>Rs. {{hourlyRate}}</span></b></p>
-        </td>
-      </tr>
-      <tr>
-        <td width=64 style='width:47.95pt;border-top:none;border-left:solid #7BA0CD 1.0pt;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:none;padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing align=center style='text-align:center'><span
-              style='font-family:"Bahnschrift",sans-serif'>12</span></p>
-        </td>
-        <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
-  padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>Half-Hourly
-                Fees for S -</span></b></p>
-        </td>
-        <td width=346 style='width:259.45pt;border-top:none;border-left:none;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
-  padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>Rs. {{halfRate}}</span></b></p>
-        </td>
-      </tr>
-      <tr>
-        <td width=64 style='width:47.95pt;border-top:none;border-left:solid #7BA0CD 1.0pt;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:none;background:#D3DFEE;
-  padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing align=center style='text-align:center'><span
-              style='font-family:"Bahnschrift",sans-serif;color:black'>13</span></p>
-        </td>
-        <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
-  background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif;
-  color:black'>Teacher MentR ID – TMIDP &amp; TMIDS</span></b></p>
-        </td>
-        <td width=346 style='width:259.45pt;border-top:none;border-left:none;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
-  background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif;
-  color:black'>{{teacherMentRId}}</span></b></p>
-        </td>
-      </tr>
-      <tr>
-        <td width=64 style='width:47.95pt;border-top:none;border-left:solid #7BA0CD 1.0pt;
-  border-bottom:solid #7BA0CD 1.0pt;border-right:none;padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing align=center style='text-align:center'><span
-              style='font-family:"Bahnschrift",sans-serif'>14</span></p>
+              style='font-family:"Bahnschrift",sans-serif'>{{slotRowNum}}</span></p>
         </td>
         <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
   padding:0in 5.4pt 0in 5.4pt'>
@@ -594,7 +504,7 @@ letter-spacing:-.5pt'>COMPENDIUM</span></u></h1>
         <td width=346 style='width:259.45pt;border-top:none;border-left:none;
   border-bottom:solid #7BA0CD 1.0pt;border-right:solid #7BA0CD 1.0pt;
   padding:0in 5.4pt 0in 5.4pt'>
-          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>{{slots}} Slots ({{preferredTimeSlots}})</span></b>
+          <p class=MsoNoSpacing><b><span style='font-family:"Bahnschrift",sans-serif'>{{slots}} ({{preferredTimeSlots}})</span></b>
           </p>
         </td>
       </tr>
@@ -603,7 +513,7 @@ letter-spacing:-.5pt'>COMPENDIUM</span></u></h1>
   border-bottom:solid #7BA0CD 1.0pt;border-right:none;background:#D3DFEE;
   padding:0in 5.4pt 0in 5.4pt'>
           <p class=MsoNoSpacing align=center style='text-align:center'><span
-              style='font-family:"Bahnschrift",sans-serif;color:black'>15</span></p>
+              style='font-family:"Bahnschrift",sans-serif;color:black'>{{avRowNum}}</span></p>
         </td>
         <td width=255 style='width:191.35pt;border:none;border-bottom:solid #7BA0CD 1.0pt;
   background:#D3DFEE;padding:0in 5.4pt 0in 5.4pt'>

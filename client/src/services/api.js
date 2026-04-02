@@ -14,11 +14,13 @@ export const login = (data) => api.post('/auth/login', data);
 export const googleLogin = (credential) => api.post('/auth/google', { credential });
 
 // ─── Candidates ────────────────────────────────────────────────────────────
-export const getCandidates = () => api.get('/candidate');
-export const getCandidateById = (id) => api.get(`/candidate/${id}`);
-export const updateCandidate = (id, data) => api.patch(`/candidate/${id}`, data);
-export const deleteCandidate = (id, reason, notes = '') => api.delete(`/candidate/${id}`, { data: { reason, notes } });
-export const getDeletedLog = () => api.get('/candidate/deleted-log');
+export const getCandidates    = ()        => api.get('/candidate');
+export const getCandidateById = (id)      => api.get(`/candidate/${id}`);
+export const createCandidate  = (data)    => api.post('/candidate', data);
+export const updateCandidate  = (id, data)=> api.patch(`/candidate/${id}`, data);
+export const deleteCandidate  = (id, reason, notes = '') => api.delete(`/candidate/${id}`, { data: { reason, notes } });
+export const reserveCandidateDirect = (id, reason, notes = '') => api.post(`/candidate/${id}/reserve`, { reason, notes });
+export const getDeletedLog    = ()        => api.get('/candidate/deleted-log');
 
 
 // ─── Interviews ────────────────────────────────────────────────────────────
@@ -27,11 +29,18 @@ export const createInterview = (data) => api.post('/interview', data);
 export const updateInterviewStatus = (id, status) => api.patch(`/interview/${id}/status`, { status });
 export const rescheduleInterview = (id, scheduledAt) => api.patch(`/interview/${id}/reschedule`, { scheduledAt });
 
-export const rejectInterview = (id, reason, notes = '') => api.post(`/interview/${id}/reject`, { reason, notes });
+export const reserveInterview = (id, reason, notes = '') => api.post(`/interview/${id}/reserve`, { reason, notes });
 export const getInterviewFeedbacks = (id) => api.get(`/interview/${id}/feedback`);
 export const assignCPC = (id, cpcFrom, cpcTo) => api.patch(`/interview/${id}/cpc`, { cpcFrom, cpcTo });
 
 export const getClassOptions = (id) => api.get(`/interview/${id}/class-options`);
+
+// LoA / Standby workflow
+export const saveLoaConfig     = (id, data)              => api.patch(`/interview/${id}/save-loa-config`, data);
+export const sendLoaAndStandby = (id, data)              => api.post(`/interview/${id}/send-loa`, data);
+export const confirmStandby    = (id)                    => api.post(`/interview/${id}/confirm-standby`);
+export const reserveStandby    = (id, reason, notes = '') => api.post(`/interview/${id}/reserve-standby`, { reason, notes });
+
 
 // ─── Teachers ──────────────────────────────────────────────────────────────
 export const getTeachers = () => api.get('/teacher');
@@ -62,3 +71,11 @@ export const createMeeting      = (data) => api.post('/meeting', data);
 export const rescheduleMeeting  = (id, scheduledAt) => api.patch(`/meeting/${id}/reschedule`, { scheduledAt });
 export const updateMeetingStatus = (id, status) => api.patch(`/meeting/${id}/status`, { status });
 export const deleteMeeting      = (id) => api.delete(`/meeting/${id}`);
+
+// ─── Reports ────────────────────────────────────────────────────────────────
+// type: 'finalized'|'reserved'|'meetings'|'cpc'|'classCode'|'locations'|'candidatesApplied'|'candidatesBreakdown'
+// period: 'day'|'week'|'month'
+// location: 'BBSR'|'Cuttack'|'Khorda' (optional, for location-based reports)
+export const getReport = (type, period = 'month', location = null) =>
+  api.get('/reports', { params: { type, period, ...(location ? { location } : {}) } });
+
