@@ -1,6 +1,6 @@
 import Interview from "./interview.model.js";
 import Candidate from "../candidate/candidate.model.js";
-import { createZoomMeeting } from "../../services/zoom.service.js";
+import { createZoomMeeting, deleteRecording } from "../../services/zoom.service.js";
 import { generateToken } from "../../utils/token.js";
 import { calculateTotalScore } from "../../utils/score.js";
 import { CLASS_CODES } from "../../config/classCodes.js";
@@ -174,8 +174,6 @@ export const getFeedbackForInterview = async (interviewId) => {
 
   const interview = await Interview.findById(interviewId);
 
-  console.log("Incoming interviewId:", interviewId);
-
   if (!interview) {
     throw new Error("Interview not found");
   }
@@ -283,20 +281,27 @@ export const selectClassCode = async (id, classCode, user) => {
     throw new Error("Interview not found");
   }
 
-  if (!interview?.pricing?.cpc) {
-    throw new Error("Not reviewed yet");
+  if (!interview?.pricing?.cpcFrom) {
+    throw new Error("CPC range not yet assigned to this interview");
   }
 
-  const prefix = interview.pricing.cpc.split("-")[0];
+  // Build union of all class codes in the CPC range (same logic as getClassOptions)
+  const { cpcFrom, cpcTo, category } = interview.pricing;
+  const sectionKeys = Object.keys(CPC_MAP[category] || {});
+  const fromIdx = sectionKeys.indexOf(cpcFrom);
+  const toIdx   = sectionKeys.indexOf(cpcTo);
 
-  const allowed = CPC_MAP[prefix]?.[interview.pricing.cpc];
-
-  if (!allowed) {
-    throw new Error("Invalid CPC mapping");
+  if (fromIdx === -1 || toIdx === -1) {
+    throw new Error("Invalid CPC range stored on interview");
   }
 
-  if (!allowed.includes(classCode)) {
-    throw new Error("Invalid class code");
+  const allAllowed = new Set();
+  for (let i = fromIdx; i <= toIdx; i++) {
+    (CPC_MAP[category][sectionKeys[i]] || []).forEach(c => allAllowed.add(c));
+  }
+
+  if (!allAllowed.has(classCode)) {
+    throw new Error("classCode is not allowed within the assigned CPC range");
   }
 
   const details = CLASS_CODES[classCode];
@@ -331,8 +336,6 @@ export const addStudent = async (id, board, user) => {
 
   return "Student added";
 };
-
-import { deleteRecording } from "../../services/zoom.service.js";
 
 export const getRecordingUrl = async (id, user) => {
   if (!["admin", "super_admin"].includes(user.role)) {

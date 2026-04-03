@@ -7,10 +7,12 @@ export const initCronJobs = () => {
   cron.schedule('0 * * * *', async () => {
     console.log('[CRON] Executing recording fetch task...');
     try {
+      const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
       const interviews = await Interview.find({
         status: 'completed',
         zoomRecordingStatus: 'pending',
-        zoomMeetingId: { $exists: true, $ne: null }
+        zoomMeetingId: { $exists: true, $ne: null },
+        scheduledAt: { $lt: thirtyMinsAgo }  // only poll after Zoom has had time to process
       });
 
       for (const interview of interviews) {

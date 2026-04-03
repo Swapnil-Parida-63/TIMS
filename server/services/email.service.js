@@ -1,15 +1,17 @@
 import nodemailer from "nodemailer";
 
+// ── Singleton transporter — created once, reused for all emails ───────────────
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS  // Must be a Gmail App Password, not your regular password
+  }
+});
+
 /**
  * Sends an email with file attachments using Gmail SMTP.
  * Requires EMAIL_USER and EMAIL_PASS (App Password) in .env
- *
- * @param {Object} opts
- * @param {string}   opts.to          - Recipient email address
- * @param {string}   opts.subject     - Email subject
- * @param {string}   opts.text        - Plain text body
- * @param {string}   [opts.html]      - Optional HTML body
- * @param {Array}    opts.attachments - Array of { filename, path } objects
  */
 export const sendEmailWithAttachments = async ({
   to,
@@ -18,14 +20,6 @@ export const sendEmailWithAttachments = async ({
   html,
   attachments = []
 }) => {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS  // Must be a Gmail App Password, not your regular password
-    }
-  });
-
   try {
     const info = await transporter.sendMail({
       from: `"TheMentR HR" <${process.env.EMAIL_USER}>`,
@@ -47,14 +41,6 @@ export const sendEmailWithAttachments = async ({
  * Sends interview schedule email to Candidate and Judges
  */
 export const sendInterviewEmail = async (candidate, judges, meetingDetails) => {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
-  });
-
   const dateObj = new Date(meetingDetails.scheduledAt);
   const formattedDate = dateObj.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 

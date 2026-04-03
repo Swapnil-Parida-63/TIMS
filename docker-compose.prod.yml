@@ -1,0 +1,29 @@
+version: '3.8'
+
+# Production compose — uses pre-built images from Docker Hub.
+# Usage on EC2:
+#   DOCKER_HUB_USERNAME=yourname docker compose -f docker-compose.prod.yml up -d
+
+services:
+  server:
+    image: ${DOCKER_HUB_USERNAME}/tims-server:latest
+    env_file: ./server/.env          # copy your .env here on the EC2 instance
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - tims-network
+
+  client:
+    image: ${DOCKER_HUB_USERNAME}/tims-client:latest
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+    networks:
+      - tims-network
+
+networks:
+  tims-network:
+    driver: bridge

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # ── Express API Server ───────────────────────────────────────────────────
+  server:
+    build: ./server
+    env_file: ./server/.env
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - tims-network
+
+  # ── React Client (Nginx) ─────────────────────────────────────────────────
+  client:
+    build: ./client
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+    networks:
+      - tims-network
+
+networks:
+  tims-network:
+    driver: bridge

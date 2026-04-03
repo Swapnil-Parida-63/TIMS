@@ -3,9 +3,12 @@ import cors from "cors";
 import interviewRouter from "./modules/interview/interview.route.js";
 import candidateRouter from "./modules/candidate/candidate.route.js";
 import authRouter from "./modules/auth/auth.route.js";
-import teacherRouter from "./modules/teacher/teacher.route.js"
+import teacherRouter from "./modules/teacher/teacher.route.js";
 import webhookRouter from "./modules/webhook/webhook.route.js";
 import userRouter from "./modules/user/user.route.js";
+import meetingRouter from "./modules/meeting/meeting.route.js";
+import reportRouter  from "./modules/reports/reports.route.js";
+import { initCronJobs } from "./services/cron.service.js";
 
 const app = express();
 
@@ -13,11 +16,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
-import meetingRouter from "./modules/meeting/meeting.route.js";
-import reportRouter  from "./modules/reports/reports.route.js";
-
-//routes
+// Routes
 app.use('/api/candidate', candidateRouter);
 app.use("/api/interview", interviewRouter);
 app.use("/api/auth", authRouter);
@@ -27,12 +26,18 @@ app.use("/api/users", userRouter);
 app.use("/api/meeting", meetingRouter);
 app.use("/api/reports", reportRouter);
 
-// Routes
-// router.get("/", (req, res) => {
-//   res.send("Welcome to the Task and Issue Management System API");
-// });
+// 404 handler — unmatched routes return JSON, not HTML
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
 
-import { initCronJobs } from "./services/cron.service.js";
+// Global error handler — catches any unhandled errors thrown in routes/middleware
+app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  console.error("[Global Error]", err.stack || err.message);
+  res.status(500).json({ success: false, message: "Internal server error" });
+});
+
+// Initialize cron jobs
 initCronJobs();
 
 export default app;

@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../modules/user/user.model.js'; 
 
-const JWT_SECRET = process.env.JWT_SECRET;
 
 // Middleware function to protect routes, it checks for the presence of a JWT token in the Authorization header, verifies it, and attaches the user object to the request if valid. If the token is missing or invalid, it responds with an unauthorized error.
 
@@ -12,7 +11,7 @@ export const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
 
   if (!user) {
@@ -37,7 +36,7 @@ export const softProtect = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const user = await User.findById(decoded.id);
       if (user) req.user = user;
     }

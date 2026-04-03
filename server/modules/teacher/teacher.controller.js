@@ -1,6 +1,5 @@
 import * as teacherService from "./teacher.service.js";
 import Teacher from "./teacher.model.js";
-import fs from 'fs';
 import jwt from 'jsonwebtoken';
 
 export const getTeachers = async (req, res) => {
@@ -45,12 +44,11 @@ export const getTeacherLoA = async (req, res) => {
     const teacher = await Teacher.findById(id);
     if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
     if (!teacher.loaPath) return res.status(404).json({ success: false, message: 'LoA not generated yet' });
-    if (!fs.existsSync(teacher.loaPath)) return res.status(404).json({ success: false, message: 'LoA file missing on disk' });
 
-    const fileName = `LoA-${teacher.serialNumber || teacher._id}.pdf`;
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-    fs.createReadStream(teacher.loaPath).pipe(res);
+    // Generate a 10-minute pre-signed S3 URL and redirect the browser to it
+    const { getPresignedUrl } = await import('../../services/s3.service.js');
+    const url = await getPresignedUrl(teacher.loaPath);
+    return res.redirect(url);
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
   }

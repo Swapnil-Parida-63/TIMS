@@ -17,6 +17,9 @@ export const createCandidate = async (req, res) => {
 
 export const getCandidates = async (req, res) => {
   try {
+    if (!['admin', 'super_admin', 'executer'].includes(req.user?.role)) {
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
     const candidates = await candidateService.getCandidates();
     res.status(200).json({ success: true, data: candidates });
   } catch (error) {

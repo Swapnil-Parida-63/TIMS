@@ -1,16 +1,18 @@
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import Teacher from "./teacher.model.js";
 import Interview from "../interview/interview.model.js";
 import Candidate from "../candidate/candidate.model.js";
 import { loadTemplate } from "../../utils/templateLoader.js";
-import { generatePDF } from "../../services/pdf.service.js";
+import { generatePDFBuffer } from "../../services/pdf.service.js";
 import { sendEmailWithAttachments } from "../../services/email.service.js";
 import { CLASS_CODES } from "../../config/classCodes.js";
 import { deleteRecording } from "../../services/zoom.service.js";
+import { uploadPDF, deletePDF } from "../../services/s3.service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+
 
 export const getTeachers = async () => {
   return await Teacher.find({}).populate('candidate').sort({ createdAt: -1 });
@@ -290,12 +292,16 @@ export const finalizeTeacher = async (interviewId, adminData = {}) => {
   const loaHTML      = await loadTemplate('loaTemplate.html', data);
   const earningHTML  = await loadTemplate('earningTemplate.html', data);
 
-  // ── 6. Generate PDFs ────────────────────────────────────────────────────
-  const loaPath     = path.join(UPLOADS_DIR, `loa-${teacher?._id || interview.candidate}.pdf`);
-  const earningPath = path.join(UPLOADS_DIR, `earning-${teacher?._id || interview.candidate}.pdf`);
+  // ── 6. Generate PDFs as buffers → upload to S3 ───────────────────────────
+  const candidateId = teacher?._id || interview.candidate;
+  const loaKey     = `loa/${candidateId}.pdf`;
+  const earningKey = `earning/${candidateId}.pdf`;
 
-  await generatePDF(loaHTML, loaPath);
-  await generatePDF(earningHTML, earningPath);
+  const loaBuffer     = await generatePDFBuffer(loaHTML);
+  const earningBuffer = await generatePDFBuffer(earningHTML);
+
+  await uploadPDF(loaBuffer,     loaKey);
+  await uploadPDF(earningBuffer, earningKey);
 
   // ── 7. Send email with both PDFs attached (skip if confirming standby — already sent) ───
   if (!skipLoaEmail) {
@@ -316,8 +322,8 @@ export const finalizeTeacher = async (interviewId, adminData = {}) => {
         <p>Best regards,<br/><strong>HR Department</strong><br/>BUDIN Candor Pvt. Ltd. (For TheMentR)</p>
       `,
       attachments: [
-        { filename: 'LetterOfAgreement.pdf',   path: loaPath      },
-        { filename: 'EarningStructure.pdf',     path: earningPath  }
+        { filename: 'LetterOfAgreement.pdf', content: loaBuffer,     contentType: 'application/pdf' },
+        { filename: 'EarningStructure.pdf',  content: earningBuffer,  contentType: 'application/pdf' },
       ]
     });
   }
@@ -330,9 +336,9 @@ export const finalizeTeacher = async (interviewId, adminData = {}) => {
     await interview.save();
   }
 
-  // Store LoA path on teacher if teacher was created
+  // Store S3 key on teacher if teacher was created
   if (teacher) {
-    teacher.loaPath = loaPath;
+    teacher.loaPath = loaKey;  // loaPath now stores the S3 key
     await teacher.save();
   }
 
@@ -371,15 +377,10 @@ export const deleteTeacher = async (teacherId, user) => {
     ? `${teacher.candidate.firstName} ${teacher.candidate.lastName}`
     : 'Unknown';
 
-  // Delete stored LoA PDF if it exists
+  // Delete stored LoA PDF from S3 if it exists
   if (teacher.loaPath) {
-    try {
-      const fs = await import('fs/promises');
-      await fs.default.unlink(teacher.loaPath);
-      console.log(`🗑️ LoA PDF deleted: ${teacher.loaPath}`);
-    } catch (e) {
-      console.error('Could not delete LoA PDF:', e.message);
-    }
+    await deletePDF(teacher.loaPath);        // loaPath stores the S3 key
+    await deletePDF(teacher.loaPath.replace('loa/', 'earning/')); // also delete matching earning PDF
   }
 
   // Reset candidate status back to 'applied' so they can be re-interviewed if needed
